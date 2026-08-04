@@ -1,0 +1,5 @@
+# 1. Start the FastAPI backend
+uvicorn app:app --reload --port 8000
+
+# 2. In a separate terminal, start the Streamlit UI
+streamlit run streamlit_app.py

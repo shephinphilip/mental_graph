@@ -1,0 +1,3 @@
+[console_scripts]
+crontab = crontab_win.cli:cli
+ctab = crontab_win.cli:cli
