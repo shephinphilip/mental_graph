@@ -24,10 +24,10 @@ import builtins as _builtins
 import sys
 import typing as _typing
 
-if sys.version_info >= (3, 11):
-    from typing import TypeAlias as _TypeAlias, Never as _Never
+if sys.version_info >= (3, 10):
+    from typing import TypeAlias as _TypeAlias
 else:
-    from typing_extensions import TypeAlias as _TypeAlias, Never as _Never
+    from typing_extensions import TypeAlias as _TypeAlias
 
 DESCRIPTOR: _descriptor.FileDescriptor
 
@@ -46,6 +46,7 @@ class LinkButton(_message.Message):
     SHORTCUT_FIELD_NUMBER: _builtins.int
     ICON_POSITION_FIELD_NUMBER: _builtins.int
     IGNORE_RERUN_FIELD_NUMBER: _builtins.int
+    WRAP_FIELD_NUMBER: _builtins.int
     id: _builtins.str
     """The ID is needed for shortcuts, keys, and click-triggered reruns."""
     label: _builtins.str
@@ -58,6 +59,10 @@ class LinkButton(_message.Message):
     shortcut: _builtins.str
     icon_position: _ButtonLikeIconPosition_pb2.ButtonLikeIconPosition.ValueType
     ignore_rerun: _builtins.bool
+    wrap: _builtins.bool
+    """If false, the button label ellipsizes on one line instead of wrapping.
+    Absent means the frontend decides the optimal wrapping behavior based on the layout.
+    """
     def __init__(
         self,
         *,
@@ -72,11 +77,14 @@ class LinkButton(_message.Message):
         shortcut: _builtins.str = ...,
         icon_position: _ButtonLikeIconPosition_pb2.ButtonLikeIconPosition.ValueType = ...,
         ignore_rerun: _builtins.bool = ...,
+        wrap: _builtins.bool | None = ...,
     ) -> None: ...
-    _HasFieldArgType: _TypeAlias = _Never  # noqa: Y015
+    _HasFieldArgType: _TypeAlias = _typing.Literal["_wrap", b"_wrap", "wrap", b"wrap"]  # noqa: Y015
     def HasField(self, field_name: _HasFieldArgType) -> _builtins.bool: ...
-    _ClearFieldArgType: _TypeAlias = _typing.Literal["disabled", b"disabled", "help", b"help", "icon", b"icon", "icon_position", b"icon_position", "id", b"id", "ignore_rerun", b"ignore_rerun", "label", b"label", "shortcut", b"shortcut", "type", b"type", "url", b"url", "use_container_width", b"use_container_width"]  # noqa: Y015
+    _ClearFieldArgType: _TypeAlias = _typing.Literal["_wrap", b"_wrap", "disabled", b"disabled", "help", b"help", "icon", b"icon", "icon_position", b"icon_position", "id", b"id", "ignore_rerun", b"ignore_rerun", "label", b"label", "shortcut", b"shortcut", "type", b"type", "url", b"url", "use_container_width", b"use_container_width", "wrap", b"wrap"]  # noqa: Y015
     def ClearField(self, field_name: _ClearFieldArgType) -> None: ...
-    def WhichOneof(self, oneof_group: _Never) -> None: ...
+    _WhichOneofReturnType__wrap: _TypeAlias = _typing.Literal["wrap"]  # noqa: Y015
+    _WhichOneofArgType__wrap: _TypeAlias = _typing.Literal["_wrap", b"_wrap"]  # noqa: Y015
+    def WhichOneof(self, oneof_group: _WhichOneofArgType__wrap) -> _WhichOneofReturnType__wrap | None: ...
 
 Global___LinkButton: _TypeAlias = LinkButton  # noqa: Y015

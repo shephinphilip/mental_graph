@@ -14,10 +14,10 @@ Graph topology
     fetch_context          (Node 1) — MongoDB: history, mood, habits, memory
       │
       ▼
-    retrieve_graph_context (Node 2) — Neo4j: k-hop emotional subgraph
+    retrieve_graph_context (Node 2) — MongoDB: $graphLookup emotional subgraph
       │
       ▼
-    generate               (Node 3) — LLM: Gemini → GPT-4o with full context
+    generate               (Node 3) — LLM: Gemma 4 → Sarvam fallback via Bedrock
       │
       ▼
     format_output          (Node 4) — Parse cards, persist messages, build response
@@ -33,9 +33,16 @@ it to the next node.
 State isolation
 ---------------
 The ``ChatState`` TypedDict is the single source of truth flowing through
-the graph.  Non-serialisable runtime objects (``db``, ``neo4j_driver``)
-are stored in state as ``Any`` and are only accessed within the same
-process — they are never serialised to a checkpoint.
+the graph.  The non-serialisable runtime object ``db`` is stored in state
+as ``Any`` and is only accessed within the same process — it is never
+serialised to a checkpoint.
+
+v0.4.0 migration note
+---------------------
+Neo4j has been removed.  ``retrieve_graph_context_node`` now calls
+``services.mongo_graph.get_user_graph_context`` via the ``db`` handle
+already present in state.  The ``neo4j_driver`` key has been removed from
+``ChatState`` and from ``run_chat_graph``.
 
 Graph compilation
 -----------------
@@ -100,7 +107,6 @@ class ChatState(TypedDict, total=False):
     session_id: str
     user_message: str
     db: Any          # AsyncIOMotorDatabase — runtime only
-    neo4j_driver: Any  # Neo4j AsyncDriver — runtime only
 
     # ── Populated by fetch_context ────────────────────────────────────────────
     user_context: Dict[str, str]
@@ -194,23 +200,24 @@ async def fetch_context_node(state: ChatState) -> dict:
 
 async def retrieve_graph_context_node(state: ChatState) -> dict:
     """
-    Node 2 — Query Neo4j for the user's emotional/relational subgraph.
+    Node 2 — Query MongoDB for the user's emotional/relational subgraph.
 
-    Traverses up to ``GRAPH_TRAVERSAL_DEPTH`` hops from the User node
-    following all therapeutic relationship types.  Formats the results as
-    natural-language bullet facts for injection into the system prompt.
+    Executes a user-scoped ``$graphLookup`` aggregation on the
+    ``graph_relationships`` collection, traversing up to
+    ``GRAPH_TRAVERSAL_DEPTH`` hops from the User root node.  Formats
+    the results as natural-language bullet facts for injection into the
+    system prompt.
+
+    User isolation guarantee: every document returned is scoped to
+    ``user_id`` — no cross-user data leakage is possible.
 
     Writes to state:
     - ``graph_context`` : str — formatted subgraph facts
 
-    Design note: if the Neo4j driver is ``None`` (graph feature disabled)
-    or if the query fails, a graceful fallback string is returned and the
-    graph continues without interruption.
-
     Parameters
     ----------
     state : ChatState
-        Must contain ``neo4j_driver`` (may be ``None``) and ``user_id``.
+        Must contain ``db`` and ``user_id``.
 
     Returns
     -------
@@ -220,24 +227,17 @@ async def retrieve_graph_context_node(state: ChatState) -> dict:
     Raises
     ------
     None
-        All exceptions are caught internally; a fallback is used instead.
+        All exceptions are caught internally in ``get_user_graph_context``;
+        a fallback string is used if retrieval fails.
     """
-    from services.graph_rag import get_user_emotional_graph
+    from services.mongo_graph import get_user_graph_context
 
-    neo4j_driver = state.get("neo4j_driver")
+    db = state["db"]
     user_id = state["user_id"]
 
-    # Neo4j is optional; skip gracefully if driver is not available
-    if neo4j_driver is None:
-        logger.warning(
-            "Neo4j driver not available — skipping graph context retrieval for user=%s",
-            user_id,
-        )
-        return {"graph_context": "No relational graph data available yet."}
-
-    # ``get_user_emotional_graph`` handles its own errors and returns a
-    # fallback string if the query fails — no additional try/except needed here.
-    graph_context = await get_user_emotional_graph(neo4j_driver, user_id)
+    # get_user_graph_context handles its own errors and returns a
+    # fallback string — no additional try/except needed here.
+    graph_context = await get_user_graph_context(db, user_id)
 
     logger.info(
         "Graph context retrieved for user=%s — %d chars",
@@ -494,7 +494,6 @@ async def run_chat_graph(
     session_id: str,
     user_message: str,
     db: AsyncIOMotorDatabase,
-    neo4j_driver=None,
 ) -> Dict[str, Any]:
     """
     Execute the full LangGraph conversational pipeline for one turn.
@@ -506,6 +505,9 @@ async def run_chat_graph(
     ``ainvoke()``, and returns a response dict ready for
     ``ChatMessageResponse`` serialisation.
 
+    v0.4.0: ``neo4j_driver`` parameter removed.  Graph context is now
+    retrieved from MongoDB via the ``db`` handle.
+
     Parameters
     ----------
     user_id : str
@@ -515,10 +517,7 @@ async def run_chat_graph(
     user_message : str
         The user's raw message text for this turn.
     db : AsyncIOMotorDatabase
-        Motor async database handle.
-    neo4j_driver : neo4j.AsyncDriver, optional
-        Neo4j async driver.  If ``None``, graph context retrieval is
-        skipped and the graph continues with a fallback string.
+        Motor async database handle (used for context, graph, persistence).
 
     Returns
     -------
@@ -541,7 +540,6 @@ async def run_chat_graph(
             session_id="session_001",
             user_message="I've been feeling really anxious today",
             db=db,
-            neo4j_driver=driver,
         )
         print(result["reply"])  # The AI companion's response
     """
@@ -551,7 +549,6 @@ async def run_chat_graph(
         "session_id": session_id,
         "user_message": user_message,
         "db": db,
-        "neo4j_driver": neo4j_driver,
     }
 
     # Get (or compile) the cached graph and run it asynchronously

@@ -236,10 +236,13 @@ class ParquetFile:
     buffer_size : int, default 0
         If positive, perform read buffering when deserializing individual
         column chunks. Otherwise IO calls are unbuffered.
-    pre_buffer : bool, default False
+    pre_buffer : bool, default True
         Coalesce and issue file reads in parallel to improve performance on
-        high-latency filesystems (e.g. S3). If True, Arrow will use a
-        background I/O thread pool.
+        high-latency filesystems (e.g. S3, GCS). If True, Arrow will use a
+        background I/O thread pool. If using a filesystem layer that itself
+        performs readahead (e.g. fsspec's S3FS), disable readahead for best
+        results. Set to False if you want to prioritize minimal memory usage
+        over maximum speed.
     coerce_int96_timestamp_unit : str, default None
         Cast timestamps that are stored in INT96 format to a particular
         resolution (e.g. 'ms'). Setting to None is equivalent to 'ns'
@@ -262,9 +265,9 @@ class ParquetFile:
     page_checksum_verification : bool, default False
         If True, verify the checksum for each page read from the file.
     arrow_extensions_enabled : bool, default True
-        If True, read Parquet logical types as Arrow extension types where possible,
-        (e.g., read JSON as the canonical `arrow.json` extension type or UUID as
-        the canonical `arrow.uuid` extension type).
+        If True, read Parquet logical types as Arrow extension types where
+        possible (e.g., read JSON as the canonical `arrow.json` extension type
+        or UUID as the canonical `arrow.uuid` extension type).
 
     Examples
     --------
@@ -310,7 +313,7 @@ class ParquetFile:
 
     def __init__(self, source, *, metadata=None, common_metadata=None,
                  read_dictionary=None, binary_type=None, list_type=None,
-                 memory_map=False, buffer_size=0, pre_buffer=False,
+                 memory_map=False, buffer_size=0, pre_buffer=True,
                  coerce_int96_timestamp_unit=None,
                  decryption_properties=None, thrift_string_size_limit=None,
                  thrift_container_size_limit=None, filesystem=None,
@@ -1446,6 +1449,8 @@ Examples
                     path_or_paths, filesystem, memory_map=memory_map
                 )
                 finfo = filesystem.get_file_info(path_or_paths)
+                if finfo.is_file:
+                    single_file = path_or_paths
                 if finfo.type == FileType.Directory:
                     self._base_dir = path_or_paths
             else:
@@ -2367,7 +2372,7 @@ def write_metadata(schema, where, metadata_collector=None, filesystem=None,
 
 
 def read_metadata(where, memory_map=False, decryption_properties=None,
-                  filesystem=None):
+                  filesystem=None, arrow_extensions_enabled=True):
     """
     Read FileMetaData from footer of a single Parquet file.
 
@@ -2382,6 +2387,10 @@ def read_metadata(where, memory_map=False, decryption_properties=None,
         If nothing passed, will be inferred based on path.
         Path will try to be found in the local on-disk filesystem otherwise
         it will be parsed as an URI to determine the filesystem.
+    arrow_extensions_enabled : bool, default True
+        If True, read Parquet logical types as Arrow extension types where
+        possible (e.g. UUID as the canonical `arrow.uuid` extension type).
+        If False, use the underlying storage types instead.
 
     Returns
     -------
@@ -2411,13 +2420,17 @@ def read_metadata(where, memory_map=False, decryption_properties=None,
         file_ctx = where = filesystem.open_input_file(where)
 
     with file_ctx:
-        file = ParquetFile(where, memory_map=memory_map,
-                           decryption_properties=decryption_properties)
+        file = ParquetFile(
+            where,
+            memory_map=memory_map,
+            decryption_properties=decryption_properties,
+            arrow_extensions_enabled=arrow_extensions_enabled,
+        )
         return file.metadata
 
 
 def read_schema(where, memory_map=False, decryption_properties=None,
-                filesystem=None):
+                filesystem=None, arrow_extensions_enabled=True):
     """
     Read effective Arrow schema from Parquet file metadata.
 
@@ -2432,6 +2445,9 @@ def read_schema(where, memory_map=False, decryption_properties=None,
         If nothing passed, will be inferred based on path.
         Path will try to be found in the local on-disk filesystem otherwise
         it will be parsed as an URI to determine the filesystem.
+    arrow_extensions_enabled : bool, default True
+        If True, read Parquet logical types as Arrow extension types where
+        possible (e.g., UUID as the canonical `arrow.uuid` extension type).
 
     Returns
     -------
@@ -2457,9 +2473,12 @@ def read_schema(where, memory_map=False, decryption_properties=None,
 
     with file_ctx:
         file = ParquetFile(
-            where, memory_map=memory_map,
-            decryption_properties=decryption_properties)
-        return file.schema.to_arrow_schema()
+            where,
+            memory_map=memory_map,
+            decryption_properties=decryption_properties,
+            arrow_extensions_enabled=arrow_extensions_enabled,
+        )
+        return file.schema_arrow
 
 
 __all__ = (

@@ -50,6 +50,7 @@ class Exception(_message.Message):
     STACK_TRACE_FIELD_NUMBER: _builtins.int
     IS_WARNING_FIELD_NUMBER: _builtins.int
     WIDTH_CONFIG_FIELD_NUMBER: _builtins.int
+    IS_STREAMLIT_EXCEPTION_FIELD_NUMBER: _builtins.int
     type: _builtins.str
     """The type of the exception. This can be any string, but is usually a valid
     Python exception type, like 'RuntimeError'.
@@ -61,6 +62,15 @@ class Exception(_message.Message):
     is_warning: _builtins.bool
     """If true, this is an error that doesn't stop the execution flow. So it gets
     rendered differently for clarity.
+    """
+    is_streamlit_exception: _builtins.bool
+    """True if Streamlit itself raised this exception (a subclass of
+    streamlit.errors.Error, e.g. StreamlitAPIException) rather than an
+    arbitrary user/runtime error like ZeroDivisionError. The frontend uses
+    this to scope the in-error "Install skills" callout to mistakes the
+    Streamlit agent skills can actually help with. Additive and
+    backwards-compatible: proto3 defaults it to false, so existing external
+    consumers of this (deliberately stable) proto are unaffected.
     """
     @_builtins.property
     def stack_trace(self) -> _containers.RepeatedScalarFieldContainer[_builtins.str]:
@@ -79,10 +89,11 @@ class Exception(_message.Message):
         stack_trace: _abc.Iterable[_builtins.str] | None = ...,
         is_warning: _builtins.bool = ...,
         width_config: _WidthConfig_pb2.WidthConfig | None = ...,
+        is_streamlit_exception: _builtins.bool = ...,
     ) -> None: ...
     _HasFieldArgType: _TypeAlias = _typing.Literal["width_config", b"width_config"]  # noqa: Y015
     def HasField(self, field_name: _HasFieldArgType) -> _builtins.bool: ...
-    _ClearFieldArgType: _TypeAlias = _typing.Literal["is_warning", b"is_warning", "message", b"message", "message_is_markdown", b"message_is_markdown", "stack_trace", b"stack_trace", "type", b"type", "width_config", b"width_config"]  # noqa: Y015
+    _ClearFieldArgType: _TypeAlias = _typing.Literal["is_streamlit_exception", b"is_streamlit_exception", "is_warning", b"is_warning", "message", b"message", "message_is_markdown", b"message_is_markdown", "stack_trace", b"stack_trace", "type", b"type", "width_config", b"width_config"]  # noqa: Y015
     def ClearField(self, field_name: _ClearFieldArgType) -> None: ...
     def WhichOneof(self, oneof_group: _Never) -> None: ...
 

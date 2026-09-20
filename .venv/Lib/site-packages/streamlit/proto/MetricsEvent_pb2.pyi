@@ -68,6 +68,7 @@ class MetricsEvent(_message.Message):
     CONTEXT_LOCALE_FIELD_NUMBER: _builtins.int
     CONTEXT_USER_AGENT_FIELD_NUMBER: _builtins.int
     LABEL_FIELD_NUMBER: _builtins.int
+    SURFACE_FIELD_NUMBER: _builtins.int
     COMMANDS_FIELD_NUMBER: _builtins.int
     EXEC_TIME_FIELD_NUMBER: _builtins.int
     PREP_TIME_FIELD_NUMBER: _builtins.int
@@ -119,6 +120,11 @@ class MetricsEvent(_message.Message):
     context_user_agent: _builtins.str
     label: _builtins.str
     """Menu Click Event field:"""
+    surface: _builtins.str
+    """Which UI surface emitted the menu click (e.g. "toast", "errorCallout").
+    Used to attribute skills-install funnel events to the surface that drove
+    them. Empty for menu clicks that don't set it.
+    """
     exec_time: _builtins.int
     prep_time: _builtins.int
     uncaught_exception: _builtins.str
@@ -180,6 +186,7 @@ class MetricsEvent(_message.Message):
         context_locale: _builtins.str = ...,
         context_user_agent: _builtins.str = ...,
         label: _builtins.str = ...,
+        surface: _builtins.str = ...,
         commands: _abc.Iterable[_PageProfile_pb2.Command] | None = ...,
         exec_time: _builtins.int = ...,
         prep_time: _builtins.int = ...,
@@ -201,7 +208,7 @@ class MetricsEvent(_message.Message):
     ) -> None: ...
     _HasFieldArgType: _TypeAlias = _typing.Literal["browser_info", b"browser_info"]  # noqa: Y015
     def HasField(self, field_name: _HasFieldArgType) -> _builtins.bool: ...
-    _ClearFieldArgType: _TypeAlias = _typing.Literal["active_theme", b"active_theme", "anonymous_id", b"anonymous_id", "app_id", b"app_id", "attributions", b"attributions", "branch", b"branch", "browser_info", b"browser_info", "commands", b"commands", "config", b"config", "context_locale", b"context_locale", "context_page_path", b"context_page_path", "context_page_referrer", b"context_page_referrer", "context_page_search", b"context_page_search", "context_page_title", b"context_page_title", "context_page_url", b"context_page_url", "context_user_agent", b"context_user_agent", "creator_id", b"creator_id", "dev", b"dev", "event", b"event", "exec_time", b"exec_time", "has_display", b"has_display", "headless", b"headless", "hosted_at", b"hosted_at", "installed_agents", b"installed_agents", "installed_skills", b"installed_skills", "is_fragment_run", b"is_fragment_run", "is_hello", b"is_hello", "is_webdriver", b"is_webdriver", "label", b"label", "machine_id_v3", b"machine_id_v3", "machine_id_v4", b"machine_id_v4", "main_module", b"main_module", "num_pages", b"num_pages", "os", b"os", "owner", b"owner", "page_script_hash", b"page_script_hash", "prep_time", b"prep_time", "python_version", b"python_version", "repo", b"repo", "report_hash", b"report_hash", "server_mode", b"server_mode", "server_os", b"server_os", "session_id", b"session_id", "source", b"source", "streamlit_version", b"streamlit_version", "timezone", b"timezone", "total_load_time", b"total_load_time", "uncaught_exception", b"uncaught_exception"]  # noqa: Y015
+    _ClearFieldArgType: _TypeAlias = _typing.Literal["active_theme", b"active_theme", "anonymous_id", b"anonymous_id", "app_id", b"app_id", "attributions", b"attributions", "branch", b"branch", "browser_info", b"browser_info", "commands", b"commands", "config", b"config", "context_locale", b"context_locale", "context_page_path", b"context_page_path", "context_page_referrer", b"context_page_referrer", "context_page_search", b"context_page_search", "context_page_title", b"context_page_title", "context_page_url", b"context_page_url", "context_user_agent", b"context_user_agent", "creator_id", b"creator_id", "dev", b"dev", "event", b"event", "exec_time", b"exec_time", "has_display", b"has_display", "headless", b"headless", "hosted_at", b"hosted_at", "installed_agents", b"installed_agents", "installed_skills", b"installed_skills", "is_fragment_run", b"is_fragment_run", "is_hello", b"is_hello", "is_webdriver", b"is_webdriver", "label", b"label", "machine_id_v3", b"machine_id_v3", "machine_id_v4", b"machine_id_v4", "main_module", b"main_module", "num_pages", b"num_pages", "os", b"os", "owner", b"owner", "page_script_hash", b"page_script_hash", "prep_time", b"prep_time", "python_version", b"python_version", "repo", b"repo", "report_hash", b"report_hash", "server_mode", b"server_mode", "server_os", b"server_os", "session_id", b"session_id", "source", b"source", "streamlit_version", b"streamlit_version", "surface", b"surface", "timezone", b"timezone", "total_load_time", b"total_load_time", "uncaught_exception", b"uncaught_exception"]  # noqa: Y015
     def ClearField(self, field_name: _ClearFieldArgType) -> None: ...
     def WhichOneof(self, oneof_group: _Never) -> None: ...
 

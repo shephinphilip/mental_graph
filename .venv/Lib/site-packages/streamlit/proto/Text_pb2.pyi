@@ -23,10 +23,10 @@ import builtins as _builtins
 import sys
 import typing as _typing
 
-if sys.version_info >= (3, 11):
-    from typing import TypeAlias as _TypeAlias, Never as _Never
+if sys.version_info >= (3, 10):
+    from typing import TypeAlias as _TypeAlias
 else:
-    from typing_extensions import TypeAlias as _TypeAlias, Never as _Never
+    from typing_extensions import TypeAlias as _TypeAlias
 
 DESCRIPTOR: _descriptor.FileDescriptor
 
@@ -38,19 +38,27 @@ class Text(_message.Message):
 
     BODY_FIELD_NUMBER: _builtins.int
     HELP_FIELD_NUMBER: _builtins.int
+    WRAP_FIELD_NUMBER: _builtins.int
     body: _builtins.str
     """Content to display."""
     help: _builtins.str
+    wrap: _builtins.bool
+    """If false, the text stays on one line and ellipsizes instead of wrapping.
+    Absent or true means the text wraps.
+    """
     def __init__(
         self,
         *,
         body: _builtins.str = ...,
         help: _builtins.str = ...,
+        wrap: _builtins.bool | None = ...,
     ) -> None: ...
-    _HasFieldArgType: _TypeAlias = _Never  # noqa: Y015
+    _HasFieldArgType: _TypeAlias = _typing.Literal["_wrap", b"_wrap", "wrap", b"wrap"]  # noqa: Y015
     def HasField(self, field_name: _HasFieldArgType) -> _builtins.bool: ...
-    _ClearFieldArgType: _TypeAlias = _typing.Literal["body", b"body", "help", b"help"]  # noqa: Y015
+    _ClearFieldArgType: _TypeAlias = _typing.Literal["_wrap", b"_wrap", "body", b"body", "help", b"help", "wrap", b"wrap"]  # noqa: Y015
     def ClearField(self, field_name: _ClearFieldArgType) -> None: ...
-    def WhichOneof(self, oneof_group: _Never) -> None: ...
+    _WhichOneofReturnType__wrap: _TypeAlias = _typing.Literal["wrap"]  # noqa: Y015
+    _WhichOneofArgType__wrap: _TypeAlias = _typing.Literal["_wrap", b"_wrap"]  # noqa: Y015
+    def WhichOneof(self, oneof_group: _WhichOneofArgType__wrap) -> _WhichOneofReturnType__wrap | None: ...
 
 Global___Text: _TypeAlias = Text  # noqa: Y015

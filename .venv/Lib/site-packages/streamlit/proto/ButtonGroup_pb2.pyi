@@ -101,6 +101,7 @@ class ButtonGroup(_message.Message):
     RAW_VALUES_FIELD_NUMBER: _builtins.int
     QUERY_PARAM_KEY_FIELD_NUMBER: _builtins.int
     REQUIRED_FIELD_NUMBER: _builtins.int
+    WRAP_FIELD_NUMBER: _builtins.int
     id: _builtins.str
     disabled: _builtins.bool
     click_mode: Global___ButtonGroup.ClickMode.ValueType
@@ -114,6 +115,11 @@ class ButtonGroup(_message.Message):
     required: _builtins.bool
     """If true, the user cannot deselect an option in single-select mode.
     This prevents deselection and ensures a value is always selected once set.
+    """
+    wrap: _builtins.bool
+    """If false, options stay on one row and the group scrolls horizontally.
+    Absent means the frontend decides based on layout (no wrap in horizontal
+    containers; wrap otherwise).
     """
     @_builtins.property
     def options(self) -> _containers.RepeatedCompositeFieldContainer[Global___ButtonGroup.Option]: ...
@@ -146,18 +152,23 @@ class ButtonGroup(_message.Message):
         raw_values: _abc.Iterable[_builtins.str] | None = ...,
         query_param_key: _builtins.str | None = ...,
         required: _builtins.bool = ...,
+        wrap: _builtins.bool | None = ...,
     ) -> None: ...
-    _HasFieldArgType: _TypeAlias = _typing.Literal["_help", b"_help", "_query_param_key", b"_query_param_key", "help", b"help", "label_visibility", b"label_visibility", "query_param_key", b"query_param_key"]  # noqa: Y015
+    _HasFieldArgType: _TypeAlias = _typing.Literal["_help", b"_help", "_query_param_key", b"_query_param_key", "_wrap", b"_wrap", "help", b"help", "label_visibility", b"label_visibility", "query_param_key", b"query_param_key", "wrap", b"wrap"]  # noqa: Y015
     def HasField(self, field_name: _HasFieldArgType) -> _builtins.bool: ...
-    _ClearFieldArgType: _TypeAlias = _typing.Literal["_help", b"_help", "_query_param_key", b"_query_param_key", "click_mode", b"click_mode", "default", b"default", "disabled", b"disabled", "form_id", b"form_id", "help", b"help", "id", b"id", "label", b"label", "label_visibility", b"label_visibility", "options", b"options", "query_param_key", b"query_param_key", "raw_values", b"raw_values", "required", b"required", "set_value", b"set_value", "style", b"style"]  # noqa: Y015
+    _ClearFieldArgType: _TypeAlias = _typing.Literal["_help", b"_help", "_query_param_key", b"_query_param_key", "_wrap", b"_wrap", "click_mode", b"click_mode", "default", b"default", "disabled", b"disabled", "form_id", b"form_id", "help", b"help", "id", b"id", "label", b"label", "label_visibility", b"label_visibility", "options", b"options", "query_param_key", b"query_param_key", "raw_values", b"raw_values", "required", b"required", "set_value", b"set_value", "style", b"style", "wrap", b"wrap"]  # noqa: Y015
     def ClearField(self, field_name: _ClearFieldArgType) -> None: ...
     _WhichOneofReturnType__help: _TypeAlias = _typing.Literal["help"]  # noqa: Y015
     _WhichOneofArgType__help: _TypeAlias = _typing.Literal["_help", b"_help"]  # noqa: Y015
     _WhichOneofReturnType__query_param_key: _TypeAlias = _typing.Literal["query_param_key"]  # noqa: Y015
     _WhichOneofArgType__query_param_key: _TypeAlias = _typing.Literal["_query_param_key", b"_query_param_key"]  # noqa: Y015
+    _WhichOneofReturnType__wrap: _TypeAlias = _typing.Literal["wrap"]  # noqa: Y015
+    _WhichOneofArgType__wrap: _TypeAlias = _typing.Literal["_wrap", b"_wrap"]  # noqa: Y015
     @_typing.overload
     def WhichOneof(self, oneof_group: _WhichOneofArgType__help) -> _WhichOneofReturnType__help | None: ...
     @_typing.overload
     def WhichOneof(self, oneof_group: _WhichOneofArgType__query_param_key) -> _WhichOneofReturnType__query_param_key | None: ...
+    @_typing.overload
+    def WhichOneof(self, oneof_group: _WhichOneofArgType__wrap) -> _WhichOneofReturnType__wrap | None: ...
 
 Global___ButtonGroup: _TypeAlias = ButtonGroup  # noqa: Y015

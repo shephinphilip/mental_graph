@@ -23,10 +23,10 @@ import builtins as _builtins
 import sys
 import typing as _typing
 
-if sys.version_info >= (3, 11):
-    from typing import TypeAlias as _TypeAlias, Never as _Never
+if sys.version_info >= (3, 10):
+    from typing import TypeAlias as _TypeAlias
 else:
-    from typing_extensions import TypeAlias as _TypeAlias, Never as _Never
+    from typing_extensions import TypeAlias as _TypeAlias
 
 DESCRIPTOR: _descriptor.FileDescriptor
 
@@ -40,6 +40,8 @@ class Heading(_message.Message):
     HELP_FIELD_NUMBER: _builtins.int
     HIDE_ANCHOR_FIELD_NUMBER: _builtins.int
     DIVIDER_FIELD_NUMBER: _builtins.int
+    WRAP_FIELD_NUMBER: _builtins.int
+    ICON_FIELD_NUMBER: _builtins.int
     tag: _builtins.str
     """h1, h2, h3, div, etc"""
     anchor: _builtins.str
@@ -47,6 +49,12 @@ class Heading(_message.Message):
     help: _builtins.str
     hide_anchor: _builtins.bool
     divider: _builtins.str
+    wrap: _builtins.bool
+    """If false, the heading stays on one line and ellipsizes instead of wrapping.
+    Absent or true means the heading wraps.
+    """
+    icon: _builtins.str
+    """Optional emoji, Material icon shortcode, or "spinner". Empty = no icon."""
     def __init__(
         self,
         *,
@@ -56,11 +64,15 @@ class Heading(_message.Message):
         help: _builtins.str = ...,
         hide_anchor: _builtins.bool = ...,
         divider: _builtins.str = ...,
+        wrap: _builtins.bool | None = ...,
+        icon: _builtins.str = ...,
     ) -> None: ...
-    _HasFieldArgType: _TypeAlias = _Never  # noqa: Y015
+    _HasFieldArgType: _TypeAlias = _typing.Literal["_wrap", b"_wrap", "wrap", b"wrap"]  # noqa: Y015
     def HasField(self, field_name: _HasFieldArgType) -> _builtins.bool: ...
-    _ClearFieldArgType: _TypeAlias = _typing.Literal["anchor", b"anchor", "body", b"body", "divider", b"divider", "help", b"help", "hide_anchor", b"hide_anchor", "tag", b"tag"]  # noqa: Y015
+    _ClearFieldArgType: _TypeAlias = _typing.Literal["_wrap", b"_wrap", "anchor", b"anchor", "body", b"body", "divider", b"divider", "help", b"help", "hide_anchor", b"hide_anchor", "icon", b"icon", "tag", b"tag", "wrap", b"wrap"]  # noqa: Y015
     def ClearField(self, field_name: _ClearFieldArgType) -> None: ...
-    def WhichOneof(self, oneof_group: _Never) -> None: ...
+    _WhichOneofReturnType__wrap: _TypeAlias = _typing.Literal["wrap"]  # noqa: Y015
+    _WhichOneofArgType__wrap: _TypeAlias = _typing.Literal["_wrap", b"_wrap"]  # noqa: Y015
+    def WhichOneof(self, oneof_group: _WhichOneofArgType__wrap) -> _WhichOneofReturnType__wrap | None: ...
 
 Global___Heading: _TypeAlias = Heading  # noqa: Y015

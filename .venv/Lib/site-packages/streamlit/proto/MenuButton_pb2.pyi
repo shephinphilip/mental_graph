@@ -25,10 +25,10 @@ import builtins as _builtins
 import sys
 import typing as _typing
 
-if sys.version_info >= (3, 11):
-    from typing import TypeAlias as _TypeAlias, Never as _Never
+if sys.version_info >= (3, 10):
+    from typing import TypeAlias as _TypeAlias
 else:
-    from typing_extensions import TypeAlias as _TypeAlias, Never as _Never
+    from typing_extensions import TypeAlias as _TypeAlias
 
 DESCRIPTOR: _descriptor.FileDescriptor
 
@@ -43,12 +43,17 @@ class MenuButton(_message.Message):
     TYPE_FIELD_NUMBER: _builtins.int
     DISABLED_FIELD_NUMBER: _builtins.int
     ICON_FIELD_NUMBER: _builtins.int
+    WRAP_FIELD_NUMBER: _builtins.int
     id: _builtins.str
     label: _builtins.str
     help: _builtins.str
     type: _builtins.str
     disabled: _builtins.bool
     icon: _builtins.str
+    wrap: _builtins.bool
+    """If false, the trigger label ellipsizes on one line instead of wrapping.
+    Absent means the frontend decides the optimal wrapping behavior based on the layout.
+    """
     @_builtins.property
     def options(self) -> _containers.RepeatedScalarFieldContainer[_builtins.str]: ...
     def __init__(
@@ -61,11 +66,14 @@ class MenuButton(_message.Message):
         type: _builtins.str = ...,
         disabled: _builtins.bool = ...,
         icon: _builtins.str = ...,
+        wrap: _builtins.bool | None = ...,
     ) -> None: ...
-    _HasFieldArgType: _TypeAlias = _Never  # noqa: Y015
+    _HasFieldArgType: _TypeAlias = _typing.Literal["_wrap", b"_wrap", "wrap", b"wrap"]  # noqa: Y015
     def HasField(self, field_name: _HasFieldArgType) -> _builtins.bool: ...
-    _ClearFieldArgType: _TypeAlias = _typing.Literal["disabled", b"disabled", "help", b"help", "icon", b"icon", "id", b"id", "label", b"label", "options", b"options", "type", b"type"]  # noqa: Y015
+    _ClearFieldArgType: _TypeAlias = _typing.Literal["_wrap", b"_wrap", "disabled", b"disabled", "help", b"help", "icon", b"icon", "id", b"id", "label", b"label", "options", b"options", "type", b"type", "wrap", b"wrap"]  # noqa: Y015
     def ClearField(self, field_name: _ClearFieldArgType) -> None: ...
-    def WhichOneof(self, oneof_group: _Never) -> None: ...
+    _WhichOneofReturnType__wrap: _TypeAlias = _typing.Literal["wrap"]  # noqa: Y015
+    _WhichOneofArgType__wrap: _TypeAlias = _typing.Literal["_wrap", b"_wrap"]  # noqa: Y015
+    def WhichOneof(self, oneof_group: _WhichOneofArgType__wrap) -> _WhichOneofReturnType__wrap | None: ...
 
 Global___MenuButton: _TypeAlias = MenuButton  # noqa: Y015

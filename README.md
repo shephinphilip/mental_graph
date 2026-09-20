@@ -1,6 +1,6 @@
 # Therapeutic AI Companion
 
-> An empathetic, context-aware AI companion for mental health support — built with **FastAPI**, **LangGraph**, **Neo4j Graph RAG**, **MongoDB**, and **Streamlit**.
+> An empathetic, context-aware AI companion for mental health support — built with **FastAPI**, **LangGraph**, **MongoDB Graph RAG**, **AWS Bedrock**, and **Streamlit**.
 
 ---
 
@@ -12,7 +12,7 @@
 4. [Project File Reference](#project-file-reference)
 5. [Data Flow Walkthrough](#data-flow-walkthrough)
 6. [Database Schema](#database-schema)
-7. [Neo4j Knowledge Graph](#neo4j-knowledge-graph)
+7. [MongoDB Knowledge Graph](#mongodb-knowledge-graph)
 8. [API Endpoints](#api-endpoints)
 9. [SSE Event Reference](#sse-event-reference)
 10. [Configuration (.env)](#configuration-env)
@@ -28,8 +28,8 @@
 
 The Therapeutic AI Companion is a full-stack mental health support application that combines:
 
-- **Conversational AI** (Google Gemini with OpenAI GPT-4o fallback) for warm, empathetic dialogue
-- **Graph RAG** (Retrieval-Augmented Generation backed by Neo4j) for long-term relational memory
+- **Conversational AI** (AWS Bedrock with Sarvam AI fallback) for warm, empathetic dialogue
+- **MongoDB Graph RAG** (Retrieval-Augmented Generation using `$graphLookup` and deterministic node IDs) for long-term relational memory
 - **MongoDB** for message history, mood logs, habits, and extracted session insights
 - **Inline Action Cards** — structured UI components rendered in-chat (habit, booking, tool, content, task)
 - **E2EE Encryption** — all stored message content is Fernet-encrypted at rest
@@ -43,14 +43,14 @@ The backend is a **FastAPI** ASGI application; the frontend is a **Streamlit** w
 
 | Feature | Detail |
 |---|---|
-| 🧠 Graph RAG Memory | Neo4j k-hop traversal from the User node enriches every LLM prompt with relational context |
+| 🧠 MongoDB Graph RAG | High-performance `$graphLookup` traversal with deterministic node IDs enriches LLM prompts |
 | ⚡ Sub-500ms Session Resumption | Indexed MongoDB query restores the last 10 messages instantly on app open |
-| 📡 SSE Token Streaming | Real-time token delivery via Server-Sent Events with < 2s first-token latency |
+| 📡 SSE Token Streaming | Real-time token delivery via Server-Sent Events with pre-first-token fallback contract |
 | 🃏 Inline Action Cards | LLM-emitted structured cards (TOOL, HABIT, TASK, BOOKING, CONTENT) rendered in the UI |
 | 🔒 E2EE Encryption | Fernet AES encryption on all message content written to MongoDB |
 | 🕵️ PII Anonymization | Phone, email, and Aadhaar redaction before text reaches external LLM APIs |
 | 🆘 Crisis Protocol | Keyword pre-check + LLM signal detection + immediate helpline resources |
-| 🔄 LLM Failover | Gemini primary → GPT-4o automatic fallback via LangChain `with_fallbacks` |
+| 🔄 LLM Failover | AWS Bedrock (Gemma 2) primary → Sarvam AI fallback with explicit startup validation |
 | 🌐 Multi-language | Supports Hinglish, Tamil, Telugu, Kannada, Marathi, Bengali, Gujarati, Punjabi |
 | 📊 Insight Extraction | Background LLM pipeline extracts emotions, themes, and crisis flags per turn |
 

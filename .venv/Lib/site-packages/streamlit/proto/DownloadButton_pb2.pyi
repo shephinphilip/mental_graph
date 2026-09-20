@@ -49,6 +49,7 @@ class DownloadButton(_message.Message):
     DEFERRED_FILE_ID_FIELD_NUMBER: _builtins.int
     SHORTCUT_FIELD_NUMBER: _builtins.int
     ICON_POSITION_FIELD_NUMBER: _builtins.int
+    WRAP_FIELD_NUMBER: _builtins.int
     id: _builtins.str
     label: _builtins.str
     default: _builtins.bool
@@ -63,6 +64,10 @@ class DownloadButton(_message.Message):
     deferred_file_id: _builtins.str
     shortcut: _builtins.str
     icon_position: _ButtonLikeIconPosition_pb2.ButtonLikeIconPosition.ValueType
+    wrap: _builtins.bool
+    """If false, the button label ellipsizes on one line instead of wrapping.
+    Absent means the frontend decides the optimal wrapping behavior based on the layout.
+    """
     def __init__(
         self,
         *,
@@ -80,13 +85,19 @@ class DownloadButton(_message.Message):
         deferred_file_id: _builtins.str | None = ...,
         shortcut: _builtins.str = ...,
         icon_position: _ButtonLikeIconPosition_pb2.ButtonLikeIconPosition.ValueType = ...,
+        wrap: _builtins.bool | None = ...,
     ) -> None: ...
-    _HasFieldArgType: _TypeAlias = _typing.Literal["_deferred_file_id", b"_deferred_file_id", "deferred_file_id", b"deferred_file_id"]  # noqa: Y015
+    _HasFieldArgType: _TypeAlias = _typing.Literal["_deferred_file_id", b"_deferred_file_id", "_wrap", b"_wrap", "deferred_file_id", b"deferred_file_id", "wrap", b"wrap"]  # noqa: Y015
     def HasField(self, field_name: _HasFieldArgType) -> _builtins.bool: ...
-    _ClearFieldArgType: _TypeAlias = _typing.Literal["_deferred_file_id", b"_deferred_file_id", "default", b"default", "deferred_file_id", b"deferred_file_id", "disabled", b"disabled", "form_id", b"form_id", "help", b"help", "icon", b"icon", "icon_position", b"icon_position", "id", b"id", "ignore_rerun", b"ignore_rerun", "label", b"label", "shortcut", b"shortcut", "type", b"type", "url", b"url", "use_container_width", b"use_container_width"]  # noqa: Y015
+    _ClearFieldArgType: _TypeAlias = _typing.Literal["_deferred_file_id", b"_deferred_file_id", "_wrap", b"_wrap", "default", b"default", "deferred_file_id", b"deferred_file_id", "disabled", b"disabled", "form_id", b"form_id", "help", b"help", "icon", b"icon", "icon_position", b"icon_position", "id", b"id", "ignore_rerun", b"ignore_rerun", "label", b"label", "shortcut", b"shortcut", "type", b"type", "url", b"url", "use_container_width", b"use_container_width", "wrap", b"wrap"]  # noqa: Y015
     def ClearField(self, field_name: _ClearFieldArgType) -> None: ...
     _WhichOneofReturnType__deferred_file_id: _TypeAlias = _typing.Literal["deferred_file_id"]  # noqa: Y015
     _WhichOneofArgType__deferred_file_id: _TypeAlias = _typing.Literal["_deferred_file_id", b"_deferred_file_id"]  # noqa: Y015
+    _WhichOneofReturnType__wrap: _TypeAlias = _typing.Literal["wrap"]  # noqa: Y015
+    _WhichOneofArgType__wrap: _TypeAlias = _typing.Literal["_wrap", b"_wrap"]  # noqa: Y015
+    @_typing.overload
     def WhichOneof(self, oneof_group: _WhichOneofArgType__deferred_file_id) -> _WhichOneofReturnType__deferred_file_id | None: ...
+    @_typing.overload
+    def WhichOneof(self, oneof_group: _WhichOneofArgType__wrap) -> _WhichOneofReturnType__wrap | None: ...
 
 Global___DownloadButton: _TypeAlias = DownloadButton  # noqa: Y015

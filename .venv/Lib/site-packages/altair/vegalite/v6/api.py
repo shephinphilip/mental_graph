@@ -50,10 +50,7 @@ else:
         TypeAliasType,
         runtime_checkable,
     )
-if sys.version_info >= (3, 11):
-    from typing import LiteralString
-else:
-    from typing_extensions import LiteralString
+from typing import LiteralString
 
 if TYPE_CHECKING:
     from collections.abc import Iterable, Iterator
@@ -69,13 +66,10 @@ if TYPE_CHECKING:
     )
 
     if sys.version_info >= (3, 13):
-        from typing import Required, TypeIs
+        from typing import TypeIs
     else:
-        from typing_extensions import Required, TypeIs
-    if sys.version_info >= (3, 11):
-        from typing import Never, Self
-    else:
-        from typing_extensions import Never, Self
+        from typing_extensions import TypeIs
+    from typing import Never, Required, Self
 
     from altair.expr.core import (
         BinaryExpression,
@@ -697,7 +691,7 @@ def _condition_to_selection(
     return selection
 
 
-class _ConditionExtra(TypedDict, closed=True, total=False):  # type: ignore
+class _ConditionExtra(TypedDict, closed=True, total=False):
     # https://peps.python.org/pep-0728/
     # Likely a Field predicate
     empty: Optional[bool]
@@ -723,7 +717,7 @@ but not a `Conditional Value`_.
 """
 
 
-class _ConditionClosed(TypedDict, closed=True, total=False):  # type: ignore
+class _ConditionClosed(TypedDict, closed=True, total=False):
     # https://peps.python.org/pep-0728/
     # Parameter {"param", "value", "empty"}
     # Predicate {"test", "value"}
@@ -772,7 +766,7 @@ Represents all outputs from `when-then-otherwise` conditions, which are not ``Sc
 """
 
 
-class _Value(TypedDict, closed=True, total=False):  # type: ignore
+class _Value(TypedDict, closed=True, total=False):
     # https://peps.python.org/pep-0728/
     value: Required[Any]
     __extra_items__: Any
@@ -1397,6 +1391,8 @@ def when(
 
 def value(value: Any, **kwargs: Any) -> _Value:
     """Specify a value for use in an encoding."""
+    if isinstance(value, _expr_core.Expression):
+        value = core.ExprRef(expr=repr(value))
     return _Value(value=value, **kwargs)  # type: ignore
 
 
@@ -2501,7 +2497,7 @@ class TopLevelMixin(mixins.ConfigMethodMixin):
         repeat_arg: list[str] | LayerRepeatMapping | RepeatMapping
         if repeat_specified:
             assert isinstance(repeat, list)
-            repeat_arg = repeat  # ty: ignore
+            repeat_arg = repeat
         elif layer_specified:
             repeat_arg = core.LayerRepeatMapping(layer=layer, row=row, column=column)
         else:
@@ -2764,7 +2760,7 @@ class TopLevelMixin(mixins.ConfigMethodMixin):
                 "op": parsed.get("aggregate", Undefined),
             }
             assert isinstance(aggregate, list)
-            aggregate.append(core.AggregatedFieldDef(**dct))  # ty: ignore
+            aggregate.append(core.AggregatedFieldDef(**dct))
         return self._add_transform(
             core.AggregateTransform(aggregate=aggregate, groupby=groupby)
         )
@@ -3097,7 +3093,7 @@ class TopLevelMixin(mixins.ConfigMethodMixin):
                 "op": parsed.get("aggregate", Undefined),
             }
             assert isinstance(joinaggregate, list)
-            joinaggregate.append(core.JoinAggregateFieldDef(**dct))  # ty: ignore
+            joinaggregate.append(core.JoinAggregateFieldDef(**dct))
         return self._add_transform(
             core.JoinAggregateTransform(joinaggregate=joinaggregate, groupby=groupby)
         )
@@ -3785,7 +3781,7 @@ class TopLevelMixin(mixins.ConfigMethodMixin):
                         parse_types=False,
                     )
                 )
-                w.append(core.WindowFieldDef(**kwds))  # ty: ignore
+                w.append(core.WindowFieldDef(**kwds))
 
         return self._add_transform(
             core.WindowTransform(
@@ -4133,7 +4129,7 @@ class Chart(
             If ``validate`` and ``dct`` does not conform to the schema
         """
         for tp in TopLevelMixin.__subclasses__():
-            _tp: Any = super() if tp is Chart else tp
+            _tp: Any = super() if tp is Chart else tp  # ty: ignore[invalid-super-argument]
             try:
                 return _tp.from_dict(dct, validate=validate)
             except jsonschema.ValidationError:

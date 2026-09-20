@@ -24,10 +24,10 @@ import builtins as _builtins
 import sys
 import typing as _typing
 
-if sys.version_info >= (3, 11):
-    from typing import TypeAlias as _TypeAlias, Never as _Never
+if sys.version_info >= (3, 10):
+    from typing import TypeAlias as _TypeAlias
 else:
-    from typing_extensions import TypeAlias as _TypeAlias, Never as _Never
+    from typing_extensions import TypeAlias as _TypeAlias
 
 DESCRIPTOR: _descriptor.FileDescriptor
 
@@ -66,6 +66,7 @@ class Markdown(_message.Message):
     HELP_FIELD_NUMBER: _builtins.int
     UNTERMINATED_PARSING_FIELD_NUMBER: _builtins.int
     HIDE_ANCHORS_FIELD_NUMBER: _builtins.int
+    WRAP_FIELD_NUMBER: _builtins.int
     body: _builtins.str
     """Content to display."""
     allow_html: _builtins.bool
@@ -77,6 +78,10 @@ class Markdown(_message.Message):
     """When true, headers within `body` keep their `id` (so URL #anchor deep
     linking still works) but the visible anchor link icon is not rendered.
     """
+    wrap: _builtins.bool
+    """If false, the text stays on one line and ellipsizes instead of wrapping.
+    Absent or true means the text wraps.
+    """
     def __init__(
         self,
         *,
@@ -86,11 +91,14 @@ class Markdown(_message.Message):
         help: _builtins.str = ...,
         unterminated_parsing: _builtins.bool = ...,
         hide_anchors: _builtins.bool = ...,
+        wrap: _builtins.bool | None = ...,
     ) -> None: ...
-    _HasFieldArgType: _TypeAlias = _Never  # noqa: Y015
+    _HasFieldArgType: _TypeAlias = _typing.Literal["_wrap", b"_wrap", "wrap", b"wrap"]  # noqa: Y015
     def HasField(self, field_name: _HasFieldArgType) -> _builtins.bool: ...
-    _ClearFieldArgType: _TypeAlias = _typing.Literal["allow_html", b"allow_html", "body", b"body", "element_type", b"element_type", "help", b"help", "hide_anchors", b"hide_anchors", "unterminated_parsing", b"unterminated_parsing"]  # noqa: Y015
+    _ClearFieldArgType: _TypeAlias = _typing.Literal["_wrap", b"_wrap", "allow_html", b"allow_html", "body", b"body", "element_type", b"element_type", "help", b"help", "hide_anchors", b"hide_anchors", "unterminated_parsing", b"unterminated_parsing", "wrap", b"wrap"]  # noqa: Y015
     def ClearField(self, field_name: _ClearFieldArgType) -> None: ...
-    def WhichOneof(self, oneof_group: _Never) -> None: ...
+    _WhichOneofReturnType__wrap: _TypeAlias = _typing.Literal["wrap"]  # noqa: Y015
+    _WhichOneofArgType__wrap: _TypeAlias = _typing.Literal["_wrap", b"_wrap"]  # noqa: Y015
+    def WhichOneof(self, oneof_group: _WhichOneofArgType__wrap) -> _WhichOneofReturnType__wrap | None: ...
 
 Global___Markdown: _TypeAlias = Markdown  # noqa: Y015

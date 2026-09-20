@@ -14,7 +14,7 @@ _sym_db = _symbol_database.Default()
 
 
 
-DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x1astreamlit/proto/Text.proto\"\"\n\x04Text\x12\x0c\n\x04\x62ody\x18\x01 \x01(\t\x12\x0c\n\x04help\x18\x02 \x01(\tb\x06proto3')
+DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x1astreamlit/proto/Text.proto\">\n\x04Text\x12\x0c\n\x04\x62ody\x18\x01 \x01(\t\x12\x0c\n\x04help\x18\x02 \x01(\t\x12\x11\n\x04wrap\x18\x03 \x01(\x08H\x00\x88\x01\x01\x42\x07\n\x05_wrapb\x06proto3')
 
 _globals = globals()
 _builder.BuildMessageAndEnumDescriptors(DESCRIPTOR, _globals)
@@ -22,5 +22,5 @@ _builder.BuildTopDescriptorsAndMessages(DESCRIPTOR, 'streamlit.proto.Text_pb2', 
 if not _descriptor._USE_C_DESCRIPTORS:
   DESCRIPTOR._loaded_options = None
   _globals['_TEXT']._serialized_start=30
-  _globals['_TEXT']._serialized_end=64
+  _globals['_TEXT']._serialized_end=92
 # @@protoc_insertion_point(module_scope)

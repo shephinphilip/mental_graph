@@ -24,10 +24,10 @@ import builtins as _builtins
 import sys
 import typing as _typing
 
-if sys.version_info >= (3, 11):
-    from typing import TypeAlias as _TypeAlias, Never as _Never
+if sys.version_info >= (3, 10):
+    from typing import TypeAlias as _TypeAlias
 else:
-    from typing_extensions import TypeAlias as _TypeAlias, Never as _Never
+    from typing_extensions import TypeAlias as _TypeAlias
 
 DESCRIPTOR: _descriptor.FileDescriptor
 
@@ -46,6 +46,7 @@ class Button(_message.Message):
     ICON_FIELD_NUMBER: _builtins.int
     SHORTCUT_FIELD_NUMBER: _builtins.int
     ICON_POSITION_FIELD_NUMBER: _builtins.int
+    WRAP_FIELD_NUMBER: _builtins.int
     id: _builtins.str
     label: _builtins.str
     default: _builtins.bool
@@ -61,6 +62,10 @@ class Button(_message.Message):
     icon: _builtins.str
     shortcut: _builtins.str
     icon_position: _ButtonLikeIconPosition_pb2.ButtonLikeIconPosition.ValueType
+    wrap: _builtins.bool
+    """If false, the button label ellipsizes on one line instead of wrapping.
+    Absent means the frontend decides the optimal wrapping behavior based on the layout.
+    """
     def __init__(
         self,
         *,
@@ -75,11 +80,14 @@ class Button(_message.Message):
         icon: _builtins.str = ...,
         shortcut: _builtins.str = ...,
         icon_position: _ButtonLikeIconPosition_pb2.ButtonLikeIconPosition.ValueType = ...,
+        wrap: _builtins.bool | None = ...,
     ) -> None: ...
-    _HasFieldArgType: _TypeAlias = _Never  # noqa: Y015
+    _HasFieldArgType: _TypeAlias = _typing.Literal["_wrap", b"_wrap", "wrap", b"wrap"]  # noqa: Y015
     def HasField(self, field_name: _HasFieldArgType) -> _builtins.bool: ...
-    _ClearFieldArgType: _TypeAlias = _typing.Literal["default", b"default", "disabled", b"disabled", "form_id", b"form_id", "help", b"help", "icon", b"icon", "icon_position", b"icon_position", "id", b"id", "is_form_submitter", b"is_form_submitter", "label", b"label", "shortcut", b"shortcut", "type", b"type"]  # noqa: Y015
+    _ClearFieldArgType: _TypeAlias = _typing.Literal["_wrap", b"_wrap", "default", b"default", "disabled", b"disabled", "form_id", b"form_id", "help", b"help", "icon", b"icon", "icon_position", b"icon_position", "id", b"id", "is_form_submitter", b"is_form_submitter", "label", b"label", "shortcut", b"shortcut", "type", b"type", "wrap", b"wrap"]  # noqa: Y015
     def ClearField(self, field_name: _ClearFieldArgType) -> None: ...
-    def WhichOneof(self, oneof_group: _Never) -> None: ...
+    _WhichOneofReturnType__wrap: _TypeAlias = _typing.Literal["wrap"]  # noqa: Y015
+    _WhichOneofArgType__wrap: _TypeAlias = _typing.Literal["_wrap", b"_wrap"]  # noqa: Y015
+    def WhichOneof(self, oneof_group: _WhichOneofArgType__wrap) -> _WhichOneofReturnType__wrap | None: ...
 
 Global___Button: _TypeAlias = Button  # noqa: Y015

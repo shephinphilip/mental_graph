@@ -22,9 +22,9 @@ Section 3 — Downstream Extraction Pipeline
                              (emotions, themes, crisis flags, insight summary)
 
 Section 4 — Graph RAG Pipeline
-    ``GraphNodeLabel``     : Enum of Neo4j node label types
-    ``GraphRelationType``  : Enum of Neo4j relationship types
-    ``GraphTuple``         : A single subject-predicate-object fact for Neo4j
+    ``GraphNodeLabel``     : Enum of graph node label types
+    ``GraphRelationType``  : Enum of graph relationship types
+    ``GraphTuple``         : A single subject-predicate-object fact for MongoDB graph
     ``ExtractedGraphData`` : Container holding a list of ``GraphTuple`` objects
 
 Section 5 — Session Resumption & Safety

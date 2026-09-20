@@ -52,7 +52,7 @@ async def run_background_extraction(
     message: str,
     reply: str,
     db: AsyncIOMotorDatabase,
-    neo4j_driver=None,
+    neo4j_driver=None,  # Deprecated backward-compat arg, ignored
 ) -> None:
     """
     Orchestrate post-response metadata extraction for a conversation turn.
@@ -74,11 +74,9 @@ async def run_background_extraction(
         Pass ``"[Streamed Response]"`` for SSE streaming paths where the
         full reply is not available at schedule time.
     db : AsyncIOMotorDatabase
-        Motor database handle for MongoDB writes.
-    neo4j_driver : neo4j.AsyncDriver, optional
-        Neo4j driver for graph tuple upserts.  If ``None``, Task 2 is
-        skipped silently — this is the expected behaviour in environments
-        without Neo4j.
+        Motor database handle for MongoDB writes and graph tuple upserts.
+    neo4j_driver : optional
+        Deprecated parameter kept for backward compatibility. Ignored.
 
     Returns
     -------
@@ -105,21 +103,19 @@ async def run_background_extraction(
             session_id,
         )
 
-    # ── Task 2: Graph tuple extraction → Neo4j ────────────────────────────────
-    # Only runs if a Neo4j driver is provided (graph feature is optional).
-    if neo4j_driver is not None:
-        try:
-            tuples = await _extract_graph_tuples(message, reply)
-            if tuples:
-                # Lazy import to avoid circular dependency at module load time
-                from services.graph_rag import upsert_graph_tuples
-                await upsert_graph_tuples(neo4j_driver, user_id, tuples)
-        except Exception:
-            logger.exception(
-                "Graph tuple extraction failed for user=%s session=%s",
-                user_id,
-                session_id,
-            )
+    # ── Task 2: Graph tuple extraction → MongoDB ─────────────────────────────
+    try:
+        tuples = await _extract_graph_tuples(message, reply)
+        if tuples:
+            # Lazy import to avoid circular dependency at module load time
+            from services.graph_rag import upsert_graph_tuples
+            await upsert_graph_tuples(db, user_id, tuples)
+    except Exception:
+        logger.exception(
+            "Graph tuple extraction failed for user=%s session=%s",
+            user_id,
+            session_id,
+        )
 
 
 # ── Insight Extraction Helpers ────────────────────────────────────────────────

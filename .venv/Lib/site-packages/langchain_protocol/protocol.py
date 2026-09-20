@@ -375,11 +375,16 @@ RunCommand = RunStart
 class _CommandVariant0(_CommandFields, RunCommand):
     pass
 
+class LangSmithTracer(TypedDict):
+    project_name: NotRequired[str]  # Additional LangSmith project receiving the trace
+    example_id: NotRequired[str]  # LangSmith dataset example associated with the trace
+
 class RunStartParams(TypedDict):
     assistant_id: str  # Deployed graph/agent to run
     input: Any  # Graph input, resume value, or injected message
     config: NotRequired[dict[str, Any]]  # Per-run config overrides
     metadata: NotRequired[dict[str, Any]]  # Per-run metadata
+    langsmith_tracer: NotRequired[LangSmithTracer]  # Optional additional LangSmith trace destination
 
 Channel = Union[Literal["values"], Literal["updates"], Literal["messages"], Literal["tools"], Literal["lifecycle"], Literal["input"], Literal["checkpoints"], Literal["tasks"], Literal["custom"], Annotated[str, "custom:.+"]]
 

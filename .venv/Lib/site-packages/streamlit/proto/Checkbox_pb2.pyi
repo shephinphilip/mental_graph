@@ -60,6 +60,7 @@ class Checkbox(_message.Message):
     LABEL_VISIBILITY_FIELD_NUMBER: _builtins.int
     TYPE_FIELD_NUMBER: _builtins.int
     QUERY_PARAM_KEY_FIELD_NUMBER: _builtins.int
+    WRAP_FIELD_NUMBER: _builtins.int
     id: _builtins.str
     label: _builtins.str
     default: _builtins.bool
@@ -71,6 +72,11 @@ class Checkbox(_message.Message):
     type: Global___Checkbox.StyleType.ValueType
     query_param_key: _builtins.str
     """If set, widget value is bound to this query parameter key."""
+    wrap: _builtins.bool
+    """If false, the label ellipsizes on one line instead of wrapping.
+    Absent means the frontend decides the optimal wrapping behavior based on
+    the layout.
+    """
     @_builtins.property
     def label_visibility(self) -> _LabelVisibility_pb2.LabelVisibility: ...
     def __init__(
@@ -87,13 +93,19 @@ class Checkbox(_message.Message):
         label_visibility: _LabelVisibility_pb2.LabelVisibility | None = ...,
         type: Global___Checkbox.StyleType.ValueType = ...,
         query_param_key: _builtins.str | None = ...,
+        wrap: _builtins.bool | None = ...,
     ) -> None: ...
-    _HasFieldArgType: _TypeAlias = _typing.Literal["_query_param_key", b"_query_param_key", "label_visibility", b"label_visibility", "query_param_key", b"query_param_key"]  # noqa: Y015
+    _HasFieldArgType: _TypeAlias = _typing.Literal["_query_param_key", b"_query_param_key", "_wrap", b"_wrap", "label_visibility", b"label_visibility", "query_param_key", b"query_param_key", "wrap", b"wrap"]  # noqa: Y015
     def HasField(self, field_name: _HasFieldArgType) -> _builtins.bool: ...
-    _ClearFieldArgType: _TypeAlias = _typing.Literal["_query_param_key", b"_query_param_key", "default", b"default", "disabled", b"disabled", "form_id", b"form_id", "help", b"help", "id", b"id", "label", b"label", "label_visibility", b"label_visibility", "query_param_key", b"query_param_key", "set_value", b"set_value", "type", b"type", "value", b"value"]  # noqa: Y015
+    _ClearFieldArgType: _TypeAlias = _typing.Literal["_query_param_key", b"_query_param_key", "_wrap", b"_wrap", "default", b"default", "disabled", b"disabled", "form_id", b"form_id", "help", b"help", "id", b"id", "label", b"label", "label_visibility", b"label_visibility", "query_param_key", b"query_param_key", "set_value", b"set_value", "type", b"type", "value", b"value", "wrap", b"wrap"]  # noqa: Y015
     def ClearField(self, field_name: _ClearFieldArgType) -> None: ...
     _WhichOneofReturnType__query_param_key: _TypeAlias = _typing.Literal["query_param_key"]  # noqa: Y015
     _WhichOneofArgType__query_param_key: _TypeAlias = _typing.Literal["_query_param_key", b"_query_param_key"]  # noqa: Y015
+    _WhichOneofReturnType__wrap: _TypeAlias = _typing.Literal["wrap"]  # noqa: Y015
+    _WhichOneofArgType__wrap: _TypeAlias = _typing.Literal["_wrap", b"_wrap"]  # noqa: Y015
+    @_typing.overload
     def WhichOneof(self, oneof_group: _WhichOneofArgType__query_param_key) -> _WhichOneofReturnType__query_param_key | None: ...
+    @_typing.overload
+    def WhichOneof(self, oneof_group: _WhichOneofArgType__wrap) -> _WhichOneofReturnType__wrap | None: ...
 
 Global___Checkbox: _TypeAlias = Checkbox  # noqa: Y015

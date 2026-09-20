@@ -5,11 +5,19 @@ services/streaming.py — Server-Sent Events (SSE) Streaming Engine
 Implements real-time LLM token streaming for the ``POST /chat/stream``
 endpoint.  The target first-token latency is **< 2 seconds**.
 
+v0.4.0 Migration Note
+---------------------
+- Neo4j graph context replaced with MongoDB graph lookup via ``mongo_graph.py``.
+- Dual-LLM streaming fallback follows strict contract:
+  Fallback is attempted ONLY if 0 tokens have been emitted. Once token streaming
+  has started (>= 1 token yielded), mid-stream failures emit an ``error`` event
+  and terminate to avoid stitching partial responses across providers.
+
 SSE Event Types Emitted
 -----------------------
 Each yielded string follows the SSE wire format::
 
-    event: <event_name>\\ndata: <json_payload>\\n\\n
+    event: <event_name>\ndata: <json_payload>\n\n
 
 The following event names are emitted:
 
@@ -34,31 +42,6 @@ The following event names are emitted:
 
 ``done``
     Always the final event.  Signals the client that the stream is complete.
-
-Streaming Pipeline Steps
-------------------------
-1. **Pre-check** — Scan for crisis keywords; emit ``crisis_alert`` and short-
-   circuit if detected.
-2. **Context fetch** — Load MongoDB context (memory, moods, habits) and
-   Neo4j graph context (best-effort, fallback on error).
-3. **History load** — Fetch recent session messages for prompt construction.
-4. **PII anonymization** — Redact phone numbers, emails, Aadhaar numbers from
-   the user message before sending to external LLMs.
-5. **LLM streaming** — Stream tokens from Gemini (→ GPT-4o fallback).  Note:
-   LangChain's ``with_fallbacks`` does not support streaming fallback; the
-   fallback applies only to non-streaming invocations.
-6. **Post-processing** — Parse action cards from the assembled full text,
-   emit ``action_card`` events, log cards to MongoDB.
-7. **Persistence** — Encrypt and persist both the user message and AI reply
-   to the ``messages`` collection.
-8. **Done** — Emit the ``done`` event.
-
-E2EE note
----------
-Message content written to MongoDB is encrypted via ``encrypt_payload()``
-before insertion.  This is the Fernet token written to the ``content``
-field.  The ``decrypt_payload()`` function in ``session_resume.py``
-reverses this when loading history.
 """
 
 import json
@@ -70,7 +53,7 @@ from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 from motor.motor_asyncio import AsyncIOMotorDatabase
 
 from config import get_settings
-from llm_provider import get_llm
+from llm_provider import get_fallback_llm, get_primary_llm
 from prompts import SYSTEM_PROMPT
 from schemas import ActionCard, CardType
 from services.action_cards import parse_action_cards
@@ -80,13 +63,6 @@ from services.security import anonymize_text, encrypt_payload
 logger = logging.getLogger(__name__)
 
 # ── Crisis Keyword Detection ──────────────────────────────────────────────────
-# These phrases trigger an immediate Section 8 crisis intervention response
-# BEFORE any LLM call.  This is intentionally a simple keyword scan to
-# guarantee sub-100ms detection latency.  The LLM itself also checks for
-# crisis signals via the extraction pipeline, but that runs asynchronously.
-#
-# To extend: add multi-language phrases, phonetic variants, or upgrade to
-# a lightweight classifier model.
 _CRISIS_KEYWORDS = [
     "suicide",
     "end my life",
@@ -104,17 +80,12 @@ async def stream_chat_graph(
     session_id: str,
     user_message: str,
     db: AsyncIOMotorDatabase,
-    neo4j_driver=None,
+    neo4j_driver=None,  # Kept for backward-compat signature, ignored
 ) -> AsyncGenerator[str, None]:
     """
     Async generator that streams the AI response as SSE-formatted strings.
 
-    This is the sole public function in this module, called by the FastAPI
-    ``/chat/stream`` route via ``StreamingResponse(..., media_type="text/event-stream")``.
-
-    Each ``yield`` produces one or more SSE event lines.  The caller
-    (FastAPI ``StreamingResponse``) writes them to the HTTP response body
-    as they are produced.
+    Called by the FastAPI ``/chat/stream`` route via ``StreamingResponse``.
 
     Parameters
     ----------
@@ -126,48 +97,18 @@ async def stream_chat_graph(
         The raw user message text for this turn.
     db : AsyncIOMotorDatabase
         Motor async database handle for message persistence and history.
-    neo4j_driver : neo4j.AsyncDriver, optional
-        Neo4j async driver for graph context retrieval.  If ``None``,
-        graph context is skipped with a graceful fallback string.
+    neo4j_driver : optional
+        Deprecated parameter kept for backward compatibility. Ignored.
 
     Yields
     ------
     str
-        SSE-formatted strings in the form::
-
-            "event: <name>\\ndata: <json>\\n\\n"
-
-        Events yielded in order (depending on conditions):
-        1. ``crisis_alert`` (only if crisis keywords detected, then done)
-        2. ``token`` (zero or more, during LLM generation)
-        3. ``action_card`` (zero or more, after generation completes)
-        4. ``error`` (only if LLM stream raises an exception)
-        5. ``done`` (always the final event)
-
-    Raises
-    ------
-    None
-        This generator is designed to never raise.  All internal errors
-        are caught and emitted as ``error`` SSE events.  Database write
-        failures during persistence are logged but do not interrupt the stream.
-
-    Notes
-    -----
-    - LangChain's fallback mechanism (Gemini → GPT-4o) is **not supported**
-      in streaming mode (``astream``).  Streaming falls back only if Gemini
-      raises before yielding the first token.  For production, implement a
-      custom streaming fallback or use a resilient Gemini connection.
-    - Action card delimiter text is **filtered from token events** so the
-      UI never displays raw ``<<<ACTION_CARD ... ACTION_CARD>>>`` markup.
+        SSE-formatted strings ("event: <name>\ndata: <json>\n\n").
     """
     settings = get_settings()
-    now = datetime.now(timezone.utc)  # Single timestamp for all writes this turn
+    now = datetime.now(timezone.utc)
 
     # ── Step 1: Pre-check — Immediate Crisis Intervention (Section 8) ─────────
-    # Scan the user's message for crisis keywords before any expensive operation.
-    # On detection, immediately yield helpline resources and short-circuit the
-    # generator.  This ensures the user receives crisis support within
-    # milliseconds regardless of LLM latency.
     msg_lower = user_message.lower()
     if any(kw in msg_lower for kw in _CRISIS_KEYWORDS):
         logger.critical(
@@ -176,7 +117,6 @@ async def stream_chat_graph(
             session_id,
         )
 
-        # Build the crisis alert payload with all configured helplines
         crisis_data = {
             "title": "Immediate Support Available",
             "message": (
@@ -205,7 +145,6 @@ async def stream_chat_graph(
                     "description": "24/7 Crisis helpline",
                 },
             ],
-            # Embed a booking card to connect the user with professional support
             "action_card": {
                 "card_type": "BOOKING_CARD",
                 "title": "Connect to Professional Crisis Support",
@@ -214,10 +153,8 @@ async def stream_chat_graph(
             },
         }
 
-        # Yield the crisis alert event immediately
         yield f"event: crisis_alert\ndata: {json.dumps(crisis_data)}\n\n"
 
-        # Persist the crisis exchange to the messages collection (encrypted)
         enc_user_msg = encrypt_payload(user_message)
         enc_reply = encrypt_payload(crisis_data["message"])
 
@@ -241,38 +178,30 @@ async def stream_chat_graph(
                 }
             )
         except Exception:
-            # Persistence failure must not prevent the crisis alert from completing
             logger.exception(
                 "Failed to persist crisis exchange for user=%s session=%s",
                 user_id,
                 session_id,
             )
 
-        # Signal stream completion and short-circuit — do not call the LLM
         yield f"event: done\ndata: {json.dumps({'status': 'completed'})}\n\n"
         return
 
-    # ── Step 2: Fetch MongoDB and Neo4j Context ────────────────────────────────
-    # These are needed to build the system prompt before streaming begins.
-    # Graph context fetch is best-effort — failure falls back to a placeholder string.
+    # ── Step 2: Fetch MongoDB Context (Memory & Graph) ────────────────────────
     user_context = await fetch_user_context(db, user_id)
 
     graph_context = "No relational graph data available yet."
-    if neo4j_driver:
-        try:
-            from services.graph_rag import get_user_emotional_graph
-            graph_context = await get_user_emotional_graph(neo4j_driver, user_id)
-        except Exception as exc:
-            # Non-fatal: the LLM will still respond, just without graph context
-            logger.warning(
-                "Graph RAG fetch error during streaming for user=%s: %s",
-                user_id,
-                exc,
-            )
+    try:
+        from services.graph_rag import get_user_emotional_graph
+        graph_context = await get_user_emotional_graph(db, user_id)
+    except Exception as exc:
+        logger.warning(
+            "Graph RAG fetch error during streaming for user=%s: %s",
+            user_id,
+            exc,
+        )
 
     # ── Step 3: Load Session History ──────────────────────────────────────────
-    # Load the last MAX_HISTORY_MESSAGES messages for this session.
-    # Sort descending (for LIMIT efficiency), then reverse to chronological order.
     cursor = (
         db["messages"]
         .find(
@@ -283,14 +212,11 @@ async def stream_chat_graph(
         .limit(settings.MAX_HISTORY_MESSAGES)
     )
     history_docs = await cursor.to_list(length=settings.MAX_HISTORY_MESSAGES)
-    history_docs.reverse()  # Oldest first for chronological LLM context
+    history_docs.reverse()
 
-    # ── Step 4: Build the Message List ────────────────────────────────────────
-    # Apply PII anonymization to the user's message before sending to external LLMs.
-    # The original (non-anonymized) message is stored in MongoDB.
+    # ── Step 4: Build Message List ─────────────────────────────────────────────
     anonymized_user_message = anonymize_text(user_message)
 
-    # Substitute all context variables into the system prompt template
     formatted_system = SYSTEM_PROMPT.format(
         graph_context=graph_context,
         user_memory=user_context.get("user_memory", "N/A"),
@@ -298,10 +224,8 @@ async def stream_chat_graph(
         active_habits=user_context.get("active_habits", "N/A"),
     )
 
-    # Assemble the full message sequence for the LLM
     messages = [SystemMessage(content=formatted_system)]
 
-    # Re-hydrate conversation history as typed LangChain message objects
     for msg in history_docs:
         role = msg.get("role", "user")
         content = msg.get("content", "")
@@ -310,52 +234,60 @@ async def stream_chat_graph(
         else:
             messages.append(AIMessage(content=content))
 
-    # Append the (anonymized) current user message as the final human turn
     messages.append(HumanMessage(content=anonymized_user_message))
 
-    # ── Step 5: Stream from LLM ────────────────────────────────────────────────
-    llm = get_llm()
-    full_response_chunks = []  # Accumulate chunks to reconstruct the full response
+    # ── Step 5: Stream from LLM (Pre-first-token fallback contract) ───────────
+    primary_llm = get_primary_llm()
+    full_response_chunks = []
+    first_token_emitted = False
 
     try:
-        async for chunk in llm.astream(messages):
-            # Extract the text content from the chunk object
+        async for chunk in primary_llm.astream(messages):
+            first_token_emitted = True
             token = chunk.content if hasattr(chunk, "content") else str(chunk)
             full_response_chunks.append(token)
 
-            # Filter out action card delimiter text from the token stream.
-            # We don't want the client to display raw markup like "<<<ACTION_CARD".
-            # The full assembled text will be parsed for cards after streaming.
             if "<<<ACTION_CARD" not in token and "ACTION_CARD>>>" not in token:
                 event_payload = json.dumps({"token": token})
                 yield f"event: token\ndata: {event_payload}\n\n"
 
     except Exception as exc:
-        # Emit an error event so the client can show a fallback message.
-        # This is caught separately from post-processing to ensure the error
-        # event is always preceded by a valid stream start.
-        logger.error(
-            "LLM streaming error for user=%s session=%s: %s",
-            user_id,
-            session_id,
+        logger.warning(
+            "Primary LLM streaming error (first_token_emitted=%s): %s",
+            first_token_emitted,
             exc,
         )
-        yield f"event: error\ndata: {json.dumps({'error': str(exc)})}\n\n"
-        return  # Stop the generator — do not attempt persistence on error
+
+        # Fallback contract: attempt fallback ONLY if 0 tokens emitted so far
+        if not first_token_emitted:
+            logger.info("Attempting streaming fallback to fallback LLM...")
+            try:
+                fallback_llm = get_fallback_llm()
+                async for chunk in fallback_llm.astream(messages):
+                    token = chunk.content if hasattr(chunk, "content") else str(chunk)
+                    full_response_chunks.append(token)
+
+                    if "<<<ACTION_CARD" not in token and "ACTION_CARD>>>" not in token:
+                        event_payload = json.dumps({"token": token})
+                        yield f"event: token\ndata: {event_payload}\n\n"
+            except Exception as fallback_exc:
+                logger.error("Fallback LLM streaming also failed: %s", fallback_exc)
+                yield f"event: error\ndata: {json.dumps({'error': str(fallback_exc)})}\n\n"
+                return
+        else:
+            # Mid-stream failure: DO NOT stitch responses, emit error and terminate safely
+            yield f"event: error\ndata: {json.dumps({'error': str(exc)})}\n\n"
+            return
 
     # ── Step 6: Post-processing — Action Card Parsing ─────────────────────────
-    # Reconstruct the full response text from accumulated chunks, then parse
-    # out any action card blocks.
     full_text = "".join(full_response_chunks)
     clean_reply, cards = parse_action_cards(full_text)
 
-    # Emit each parsed action card as a separate SSE event for the client to render
     if cards:
         for card in cards:
             card_payload = json.dumps(card.model_dump())
             yield f"event: action_card\ndata: {card_payload}\n\n"
 
-        # Log action cards to the ``action_card_logs`` collection for analytics
         try:
             card_docs = [
                 {
@@ -368,15 +300,12 @@ async def stream_chat_graph(
             ]
             await db["action_card_logs"].insert_many(card_docs)
         except Exception:
-            # Non-fatal: analytics failure must not interrupt the stream
             logger.exception(
                 "Failed to log action cards for session=%s",
                 session_id,
             )
 
     # ── Step 7: Persist Messages (E2EE Encrypted) ─────────────────────────────
-    # Encrypt both the user message and the AI reply before writing to MongoDB.
-    # The original (non-anonymized) user message is stored for context fidelity.
     enc_user_msg = encrypt_payload(user_message)
     enc_reply = encrypt_payload(clean_reply)
 
@@ -400,8 +329,6 @@ async def stream_chat_graph(
             }
         )
     except Exception:
-        # Log but do not re-raise — the user has already received the full response;
-        # a persistence failure here should not surface as an error in the UI.
         logger.exception(
             "Failed to persist streamed messages for user=%s session=%s",
             user_id,
@@ -409,6 +336,4 @@ async def stream_chat_graph(
         )
 
     # ── Step 8: Signal Stream Completion ─────────────────────────────────────
-    # The ``done`` event is always the final event in the stream, regardless of
-    # whether action cards or errors occurred above.
     yield f"event: done\ndata: {json.dumps({'status': 'completed'})}\n\n"

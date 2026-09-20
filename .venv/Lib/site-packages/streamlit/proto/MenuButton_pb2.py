@@ -14,13 +14,13 @@ _sym_db = _symbol_database.Default()
 
 
 
-DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n streamlit/proto/MenuButton.proto\"t\n\nMenuButton\x12\n\n\x02id\x18\x01 \x01(\t\x12\r\n\x05label\x18\x02 \x01(\t\x12\x0f\n\x07options\x18\x03 \x03(\t\x12\x0c\n\x04help\x18\x04 \x01(\t\x12\x0c\n\x04type\x18\x05 \x01(\t\x12\x10\n\x08\x64isabled\x18\x06 \x01(\x08\x12\x0c\n\x04icon\x18\x07 \x01(\tb\x06proto3')
+DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n streamlit/proto/MenuButton.proto\"\x90\x01\n\nMenuButton\x12\n\n\x02id\x18\x01 \x01(\t\x12\r\n\x05label\x18\x02 \x01(\t\x12\x0f\n\x07options\x18\x03 \x03(\t\x12\x0c\n\x04help\x18\x04 \x01(\t\x12\x0c\n\x04type\x18\x05 \x01(\t\x12\x10\n\x08\x64isabled\x18\x06 \x01(\x08\x12\x0c\n\x04icon\x18\x07 \x01(\t\x12\x11\n\x04wrap\x18\x08 \x01(\x08H\x00\x88\x01\x01\x42\x07\n\x05_wrapb\x06proto3')
 
 _globals = globals()
 _builder.BuildMessageAndEnumDescriptors(DESCRIPTOR, _globals)
 _builder.BuildTopDescriptorsAndMessages(DESCRIPTOR, 'streamlit.proto.MenuButton_pb2', _globals)
 if not _descriptor._USE_C_DESCRIPTORS:
   DESCRIPTOR._loaded_options = None
-  _globals['_MENUBUTTON']._serialized_start=36
-  _globals['_MENUBUTTON']._serialized_end=152
+  _globals['_MENUBUTTON']._serialized_start=37
+  _globals['_MENUBUTTON']._serialized_end=181
 # @@protoc_insertion_point(module_scope)

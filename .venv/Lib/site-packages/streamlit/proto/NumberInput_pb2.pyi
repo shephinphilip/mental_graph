@@ -74,6 +74,7 @@ class NumberInput(_message.Message):
     PLACEHOLDER_FIELD_NUMBER: _builtins.int
     ICON_FIELD_NUMBER: _builtins.int
     QUERY_PARAM_KEY_FIELD_NUMBER: _builtins.int
+    IGNORE_RERUN_FIELD_NUMBER: _builtins.int
     id: _builtins.str
     label: _builtins.str
     form_id: _builtins.str
@@ -93,6 +94,13 @@ class NumberInput(_message.Message):
     icon: _builtins.str
     query_param_key: _builtins.str
     """If set, widget value is bound to this query parameter key"""
+    ignore_rerun: _builtins.bool
+    """Set by on_change="ignore": do not schedule a rerun; buffer the value until
+    the next rerun. Bound widgets still update the URL when the value is
+    committed. Inside a form, this flag has no effect because the form batches
+    values until submit.
+    Next: 27
+    """
     @_builtins.property
     def label_visibility(self) -> _LabelVisibility_pb2.LabelVisibility: ...
     def __init__(
@@ -117,10 +125,11 @@ class NumberInput(_message.Message):
         placeholder: _builtins.str = ...,
         icon: _builtins.str = ...,
         query_param_key: _builtins.str | None = ...,
+        ignore_rerun: _builtins.bool = ...,
     ) -> None: ...
     _HasFieldArgType: _TypeAlias = _typing.Literal["_default", b"_default", "_query_param_key", b"_query_param_key", "_value", b"_value", "default", b"default", "label_visibility", b"label_visibility", "query_param_key", b"query_param_key", "value", b"value"]  # noqa: Y015
     def HasField(self, field_name: _HasFieldArgType) -> _builtins.bool: ...
-    _ClearFieldArgType: _TypeAlias = _typing.Literal["_default", b"_default", "_query_param_key", b"_query_param_key", "_value", b"_value", "data_type", b"data_type", "default", b"default", "disabled", b"disabled", "form_id", b"form_id", "format", b"format", "has_max", b"has_max", "has_min", b"has_min", "help", b"help", "icon", b"icon", "id", b"id", "label", b"label", "label_visibility", b"label_visibility", "max", b"max", "min", b"min", "placeholder", b"placeholder", "query_param_key", b"query_param_key", "set_value", b"set_value", "step", b"step", "value", b"value"]  # noqa: Y015
+    _ClearFieldArgType: _TypeAlias = _typing.Literal["_default", b"_default", "_query_param_key", b"_query_param_key", "_value", b"_value", "data_type", b"data_type", "default", b"default", "disabled", b"disabled", "form_id", b"form_id", "format", b"format", "has_max", b"has_max", "has_min", b"has_min", "help", b"help", "icon", b"icon", "id", b"id", "ignore_rerun", b"ignore_rerun", "label", b"label", "label_visibility", b"label_visibility", "max", b"max", "min", b"min", "placeholder", b"placeholder", "query_param_key", b"query_param_key", "set_value", b"set_value", "step", b"step", "value", b"value"]  # noqa: Y015
     def ClearField(self, field_name: _ClearFieldArgType) -> None: ...
     _WhichOneofReturnType__default: _TypeAlias = _typing.Literal["default"]  # noqa: Y015
     _WhichOneofArgType__default: _TypeAlias = _typing.Literal["_default", b"_default"]  # noqa: Y015
