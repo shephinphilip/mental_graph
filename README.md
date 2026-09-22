@@ -681,7 +681,7 @@ The `run_background_extraction` pipeline asks the LLM to set `"crisis_signal_det
 3. Add rendering logic in [`streamlit_app.py`](streamlit_app.py) `render_action_card()`.
 
 ### Adding a New Crisis Keyword
-Edit `_CRISIS_KEYWORDS` list in [`services/streaming.py`](services/streaming.py).
+Edit `_CRISIS_TERMS` in [`services/apm.py`](services/apm.py). `/chat/send` and `/chat/stream` both use `contains_crisis_signal`.
 
 ### Changing the LLM Model
 Update `PRIMARY_MODEL` or `FALLBACK_MODEL` in `.env` (or override in `config.py` defaults). No code changes required.
