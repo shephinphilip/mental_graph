@@ -140,6 +140,18 @@ def send_memory_feedback(payload: dict, event_type: str) -> bool:
     return response.ok
 
 
+def send_pattern_feedback(pattern_id: str, event_type: str) -> bool:
+    if not pattern_id:
+        return False
+    response = requests.post(
+        f"{api_base()}/api/patterns/feedback",
+        headers=auth_headers(),
+        json={"pattern_id": pattern_id, "event_type": event_type},
+        timeout=10,
+    )
+    return response.ok
+
+
 def render_action_card(card: dict):
     card_type = card.get("card_type", "TOOL_CARD")
     title = card.get("title", "Action Card")
@@ -164,7 +176,21 @@ def render_action_card(card: dict):
             unsafe_allow_html=True,
         )
         key = f"btn_{card_type}_{title}_{id(card)}"
-        if card_type == "BOOKING_CARD":
+        is_psych = (
+            payload.get("type") == "PSYCHIATRIST_REFERRAL"
+            or card.get("card_id") == "card_psychiatrist_v1"
+        )
+        if card_type == "BOOKING_CARD" and is_psych:
+            cta = card.get("cta_label") or "Explore Care Options"
+            explore, dismiss = st.columns(2)
+            if explore.button(cta, key=key):
+                send_pattern_feedback(payload.get("pattern_id"), "STARTED")
+                send_memory_feedback(payload, "STARTED")
+                st.success("Opening professional care options — no pressure.")
+            if dismiss.button("Not now", key=f"{key}_dismiss"):
+                if send_pattern_feedback(payload.get("pattern_id"), "DISMISS"):
+                    st.caption("Understood. I won’t keep offering this.")
+        elif card_type == "BOOKING_CARD":
             if st.button(f"Connect / Book: {title}", key=key):
                 send_memory_feedback(payload, "STARTED")
                 st.success("Opening professional care booking.")

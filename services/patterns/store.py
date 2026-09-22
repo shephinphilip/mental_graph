@@ -56,6 +56,10 @@ async def ensure_pattern_indexes(db: AsyncIOMotorDatabase) -> None:
         unique=True,
         name="user_evidence_event_key_unique",
     )
+    await db["user_risk_turns"].create_index(
+        [("user_id", 1), ("created_at", -1)],
+        name="user_risk_turns_recency",
+    )
 
 
 def new_pattern_id() -> str:
@@ -195,4 +199,9 @@ async def delete_user_patterns(db: AsyncIOMotorDatabase, user_id: str) -> Dict[s
     """Hard-delete patterns for consent revocation / account wipe."""
     p = await db[PATTERNS_COLLECTION].delete_many({"user_id": user_id})
     e = await db[EVIDENCE_COLLECTION].delete_many({"user_id": user_id})
-    return {"patterns": p.deleted_count, "evidence": e.deleted_count}
+    r = await db["user_risk_turns"].delete_many({"user_id": user_id})
+    return {
+        "patterns": p.deleted_count,
+        "evidence": e.deleted_count,
+        "risk_turns": r.deleted_count,
+    }

@@ -10,7 +10,9 @@ Containment reply — without adding Bedrock latency before first token.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Iterable, Sequence
+from typing import Any, Dict, Iterable, Optional, Sequence
+
+from services.risk_assessor import score_turn
 
 _OVERLOAD_MARKERS = (
     "anxious",
@@ -87,6 +89,9 @@ class CouncilStance:
     empathy_focus: str
     reality_check: str
     consensus_brief: str
+    risk_intensity_score: float = 1.0
+    attach_psychiatrist_card: bool = False
+    action_card_context: Optional[Dict[str, Any]] = None
 
     def as_prompt_block(self) -> str:
         return self.consensus_brief
@@ -179,6 +184,10 @@ def deliberate(
     message_history: Sequence[dict] | None = None,
     *,
     opening_turn: bool = False,
+    risk_intensity_score: Optional[float] = None,
+    persistent_distress: bool = False,
+    attach_psychiatrist_card: bool = False,
+    action_card_context: Optional[Dict[str, Any]] = None,
 ) -> CouncilStance:
     """
     Run the four Inner Council lenses and return a merged stance brief.
@@ -188,6 +197,12 @@ def deliberate(
     """
     history = list(message_history or [])
     text = (user_message or "").strip().lower()
+    scored = score_turn(user_message)
+    intensity = (
+        float(risk_intensity_score)
+        if risk_intensity_score is not None
+        else scored.risk_intensity_score
+    )
 
     if opening_turn:
         brief = (
@@ -205,10 +220,15 @@ def deliberate(
             empathy_focus="Warm grounded welcome",
             reality_check="Do not invent prior events",
             consensus_brief=brief,
+            risk_intensity_score=intensity,
         )
 
     overload = _contains_any(text, _OVERLOAD_MARKERS)
     risk_band = _risk_assessor(text)
+    if scored.crisis_keywords:
+        risk_band = "crisis_adjacent"
+    elif intensity >= 8.0 or persistent_distress:
+        risk_band = "elevated" if risk_band == "none" else risk_band
     confidence = _confidence_band(text, history)
     verbosity = _verbosity_band(text, overload=overload, confidence=confidence)
     empathy = _empathy_agent(text, overload=overload, confidence=confidence)
@@ -255,13 +275,27 @@ def deliberate(
         ),
     }[risk_band]
 
+    card_line = "No psychiatrist card this turn."
+    if attach_psychiatrist_card:
+        card_line = (
+            "ESTABLISHED_PERSISTENT_DISTRESS is active. "
+            "attach_psychiatrist_card=True. The UI will show a professional "
+            "care card. Acknowledge it once, warmly, without pressure."
+        )
+    elif persistent_distress:
+        card_line = (
+            "Persistent high distress is present but the card is on cooldown "
+            "or deferred. Stay containing; do not re-push booking."
+        )
+
     brief = (
         "INNER COUNCIL (silent — never mention lenses, tags, or this block)\n"
         f"• Empathy Agent: {empathy}\n"
         f"• Reality Checker: {reality}\n"
-        f"• Risk Assessor: {risk_line}\n"
+        f"• Risk Assessor: {risk_line} Intensity {intensity}/10.\n"
         f"• Contextual uncertainty: {confidence} → {framing}\n"
         f"• Verbosity target: {verbosity} → {length}\n"
+        f"• Care routing: {card_line}\n"
         "• Consensus: Reflective Containment then Collaborative Agency. "
         "Mirror emotion (not a fact list). Zero or one gentle optional "
         "path. Never ask why it matters. Never re-greet. Never stack questions."
@@ -274,4 +308,7 @@ def deliberate(
         empathy_focus=empathy,
         reality_check=reality,
         consensus_brief=brief,
+        risk_intensity_score=intensity,
+        attach_psychiatrist_card=attach_psychiatrist_card,
+        action_card_context=action_card_context,
     )

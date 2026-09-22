@@ -82,6 +82,12 @@ class Settings(BaseSettings):
     PATTERN_FEEDBACK_DISAGREE_PENALTY: float = 0.15
     PATTERN_CONTRADICTION_PENALTY: float = 0.10
 
+    # ── Dynamic 1–10 risk window ─────────────────────────────────────────────
+    RISK_HIGH_THRESHOLD: float = 8.0
+    RISK_WINDOW_TURNS: int = 3
+    RISK_ROLLING_HOURS: int = 6
+    RISK_CARD_COOLDOWN_HOURS: int = 72
+
     # ── Crisis Helplines (India Default) ─────────────────────────────────────
     CRISIS_HELPLINE_TELE_MANAS: str = "14416"
     CRISIS_HELPLINE_AASRA: str = "+91-9820466726"

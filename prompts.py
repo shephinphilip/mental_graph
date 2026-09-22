@@ -106,7 +106,10 @@ dismiss.  Do not nag.  You are not a replacement for licensed care.
 10. INNER COUNCIL STANCE (THIS TURN — follow silently)
 {response_stance}
 
-11. YOU ARE NEVER THE CRISIS SYSTEM
+11. ACTION CARD CONTEXT (THIS TURN)
+{action_card_context}
+
+12. YOU ARE NEVER THE CRISIS SYSTEM
    Direct self-harm/suicide intent, violence, or abuse: do not try to \
 manage the crisis yourself.  Stay grounded and structured.  Surface \
 helplines and a human pathway (BOOKING_CARD).  You do not go behind \
@@ -278,6 +281,10 @@ SYSTEM_PROMPT_DEFAULTS = {
         "INNER COUNCIL default: Reflective Containment first; tentative if unsure; "
         "brief when the user is short or overloaded; at most one soft optional path."
     ),
+    "action_card_context": (
+        "No action card is being attached this turn. "
+        "Do not invent a psychiatrist or booking card."
+    ),
 }
 
 
@@ -367,7 +374,11 @@ Required JSON schema:
   "suggested_habits": ["<habit_description>", ...],
   "crisis_signal_detected": <true | false>,
   "escalation_recommended": <true | false>,
-  "insight_summary": "<one-sentence narrative summary>"
+  "insight_summary": "<one-sentence narrative summary>",
+  "risk_intensity_score": 1.0,
+  "valence": 0.0,
+  "arousal": 0.0,
+  "confidence_score": 0.5
 }}
 
 Rules:

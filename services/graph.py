@@ -65,7 +65,15 @@ from prompts import (
     format_system_prompt,
     session_phase_instructions,
 )
-from services.action_cards import attach_apm_execution_metadata, parse_action_cards
+from services.action_cards import (
+    CRISIS_FAST_TRACK_REPLY,
+    attach_apm_execution_metadata,
+    build_crisis_support_card,
+    ensure_psychiatrist_card,
+    parse_action_cards,
+)
+from services.apm import contains_crisis_signal
+from services.patterns.window import evaluate_turn_risk, format_action_card_context
 from services.apm import get_adaptive_memory_context
 from services.chat_history import (
     decrypt_message_doc,
@@ -136,6 +144,8 @@ class ChatState(TypedDict, total=False):
     # ── Populated by format_output ────────────────────────────────────────────
     reply: str
     action_cards: list
+    attach_psychiatrist_card: bool
+    risk_assessment: Dict[str, Any]
 
 
 # ════════════════════════════════════════════════════════════════════════════
@@ -302,10 +312,21 @@ async def generate_node(state: ChatState) -> dict:
     context = state.get("user_context", {})
 
     message_history = state.get("message_history", [])
+    risk_decision = await evaluate_turn_risk(
+        state["db"],
+        user_id=state.get("user_id", ""),
+        session_id=state.get("session_id", ""),
+        message=state.get("user_message", ""),
+        opening_turn=bool(state.get("opening_turn")),
+    )
     council = inner_council_deliberate(
         state.get("user_message", ""),
         message_history,
         opening_turn=bool(state.get("opening_turn")),
+        risk_intensity_score=risk_decision.score.risk_intensity_score,
+        persistent_distress=risk_decision.persistent_distress,
+        attach_psychiatrist_card=risk_decision.attach_psychiatrist_card,
+        action_card_context=risk_decision.action_card_context,
     )
     formatted_system = format_system_prompt(
         graph_context=state.get("graph_context"),
@@ -325,6 +346,9 @@ async def generate_node(state: ChatState) -> dict:
             message_history=message_history,
         ),
         response_stance=council.as_prompt_block(),
+        action_card_context=format_action_card_context(
+            risk_decision.action_card_context
+        ),
     )
 
     # Assemble the full message list for the LLM
@@ -353,7 +377,16 @@ async def generate_node(state: ChatState) -> dict:
 
     logger.info("LLM generation complete — %d chars", len(raw_output))
 
-    return {"raw_llm_output": raw_output}
+    return {
+        "raw_llm_output": raw_output,
+        "attach_psychiatrist_card": risk_decision.attach_psychiatrist_card,
+        "risk_assessment": {
+            **risk_decision.score.as_dict(),
+            "persistent_distress": risk_decision.persistent_distress,
+            "pattern_id": risk_decision.pattern_id,
+            "trigger_reason": risk_decision.trigger_reason,
+        },
+    }
 
 
 async def format_output_node(state: ChatState) -> dict:
@@ -402,6 +435,13 @@ async def format_output_node(state: ChatState) -> dict:
     # Step 1: Strip action card blocks from the raw LLM output
     clean_reply, action_cards = parse_action_cards(state["raw_llm_output"])
     attach_apm_execution_metadata(action_cards, user_id)
+    risk = state.get("risk_assessment") or {}
+    action_cards = ensure_psychiatrist_card(
+        action_cards,
+        attach=bool(state.get("attach_psychiatrist_card")),
+        pattern_id=risk.get("pattern_id"),
+        trigger_reason=risk.get("trigger_reason") or "",
+    )
 
     # Step 2: Persist history as separate role-tagged records (idempotent).
     if state.get("opening_turn") and not state.get("persist_user_message", True):
@@ -584,6 +624,33 @@ async def run_chat_graph(
                 "session_id": session_id,
                 "reply": decrypt_payload(existing.get("content", "")),
                 "action_cards": [],
+            }
+
+        # Acute crisis: emergency protocol now. Do not wait for the
+        # 3-turn persistent-distress window or an LLM turn.
+        if contains_crisis_signal(user_message):
+            logger.critical(
+                "Crisis keyword fast-track — user=%s session=%s",
+                user_id,
+                session_id,
+            )
+            crisis_card = build_crisis_support_card()
+            try:
+                await persist_user_and_assistant(
+                    db,
+                    user_id=user_id,
+                    session_id=session_id,
+                    user_message=user_message,
+                    assistant_reply=CRISIS_FAST_TRACK_REPLY,
+                )
+            except Exception:
+                logger.exception(
+                    "Failed to persist crisis fast-track for user=%s", user_id
+                )
+            return {
+                "session_id": session_id,
+                "reply": CRISIS_FAST_TRACK_REPLY,
+                "action_cards": [crisis_card.model_dump()],
             }
 
     # Build the initial state dict; nodes will add keys as they execute

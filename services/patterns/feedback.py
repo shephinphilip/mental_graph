@@ -46,13 +46,19 @@ async def record_pattern_feedback(
     contradictions = int(pattern.get("contradiction_count") or 0)
     evidence = int(pattern.get("evidence_count") or 0)
 
-    if event in {PatternFeedbackEvent.CONFIRM, PatternFeedbackEvent.HELPFUL}:
+    if event in {
+        PatternFeedbackEvent.CONFIRM,
+        PatternFeedbackEvent.HELPFUL,
+        PatternFeedbackEvent.STARTED,
+    }:
         confirm += 1
-        evidence += 1
+        if event != PatternFeedbackEvent.STARTED:
+            evidence += 1
     elif event in {
         PatternFeedbackEvent.DISAGREE,
         PatternFeedbackEvent.NOT_RELATED,
         PatternFeedbackEvent.NOT_HELPFUL,
+        PatternFeedbackEvent.DISMISS,
     }:
         disagree += 1
         contradictions += 1
@@ -70,21 +76,27 @@ async def record_pattern_feedback(
         status = "INACTIVE"
 
     now = datetime.now(timezone.utc)
+    updates = {
+        "confirm_count": confirm,
+        "disagree_count": disagree,
+        "contradiction_count": contradictions,
+        "evidence_count": evidence,
+        "confidence": confidence,
+        "status": status,
+        "updated_at": now,
+        "last_feedback_at": now,
+        "last_feedback_event": event.value,
+    }
+    if event in {
+        PatternFeedbackEvent.DISMISS,
+        PatternFeedbackEvent.NOT_HELPFUL,
+        PatternFeedbackEvent.NOT_RELATED,
+        PatternFeedbackEvent.DISAGREE,
+    }:
+        updates["card_dismissed_at"] = now
     await db[PATTERNS_COLLECTION].update_one(
         {"user_id": user_id, "pattern_id": pattern_id},
-        {
-            "$set": {
-                "confirm_count": confirm,
-                "disagree_count": disagree,
-                "contradiction_count": contradictions,
-                "evidence_count": evidence,
-                "confidence": confidence,
-                "status": status,
-                "updated_at": now,
-                "last_feedback_at": now,
-                "last_feedback_event": event.value,
-            }
-        },
+        {"$set": updates},
     )
     await append_evidence(
         db,

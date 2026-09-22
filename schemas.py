@@ -89,6 +89,8 @@ class ActionCard(BaseModel):
     card_type: CardType
     title: str
     subtitle: Optional[str] = None
+    card_id: Optional[str] = None
+    cta_label: Optional[str] = None
     action_payload: Dict[str, Any] = Field(
         ...,
         description=(
@@ -291,6 +293,15 @@ class SessionExtraction(BaseModel):
         default="",
         description="Brief narrative summary of the session insight",
     )
+    risk_intensity_score: float = Field(
+        default=1.0,
+        ge=1.0,
+        le=10.0,
+        description="1–10 turn risk intensity from the dynamic risk assessor",
+    )
+    valence: Optional[float] = Field(default=None, ge=-1.0, le=1.0)
+    arousal: Optional[float] = Field(default=None, ge=0.0, le=1.0)
+    confidence_score: float = Field(default=0.5, ge=0.0, le=1.0)
 
 
 # ════════════════════════════════════════════════════════════════════════════
@@ -522,6 +533,7 @@ class PatternStatus(str, Enum):
     OBSERVATION = "OBSERVATION"
     EMERGING = "EMERGING"
     ESTABLISHED = "ESTABLISHED"
+    ESTABLISHED_PERSISTENT_DISTRESS = "ESTABLISHED_PERSISTENT_DISTRESS"
     INACTIVE = "INACTIVE"
 
 
@@ -546,6 +558,8 @@ class PatternFeedbackEvent(str, Enum):
     NOT_RELATED = "NOT_RELATED"
     HELPFUL = "HELPFUL"
     NOT_HELPFUL = "NOT_HELPFUL"
+    DISMISS = "DISMISS"
+    STARTED = "STARTED"
 
 
 class PatternFeedbackRequest(BaseModel):

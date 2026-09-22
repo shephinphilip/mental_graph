@@ -78,6 +78,24 @@ async def test_basic_flow_no_action_cards():
 
 
 @pytest.mark.asyncio
+async def test_acute_crisis_bypasses_llm_and_three_turn_window():
+    mock_db = _make_mock_db()
+
+    with patch("services.graph.get_llm") as mock_get_llm:
+        result = await run_chat_graph(
+            user_id="user_crisis",
+            session_id="sess_crisis",
+            user_message="I want to die",
+            db=mock_db,
+        )
+
+    mock_get_llm.assert_not_called()
+    assert "14416" in result["reply"]
+    assert result["action_cards"]
+    assert result["action_cards"][0]["action_payload"]["type"] == "CRISIS_SUPPORT"
+
+
+@pytest.mark.asyncio
 async def test_flow_with_action_card():
     mock_db = _make_mock_db()
 

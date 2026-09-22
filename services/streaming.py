@@ -60,8 +60,13 @@ from prompts import (
     session_phase_instructions,
 )
 from schemas import ActionCard, CardType
-from services.action_cards import attach_apm_execution_metadata, parse_action_cards
-from services.apm import get_adaptive_memory_context
+from services.action_cards import (
+    attach_apm_execution_metadata,
+    ensure_psychiatrist_card,
+    parse_action_cards,
+)
+from services.patterns.window import evaluate_turn_risk, format_action_card_context
+from services.apm import contains_crisis_signal, get_adaptive_memory_context
 from services.chat_history import (
     decrypt_message_doc,
     find_completed_user_turn,
@@ -93,19 +98,6 @@ def _extract_token_text(chunk) -> str:
             return "".join(res)
         return str(c)
     return str(chunk)
-
-# ── Crisis Keyword Detection ──────────────────────────────────────────────────
-_CRISIS_KEYWORDS = [
-    "suicide",
-    "end my life",
-    "want to die",
-    "kill myself",
-    "self harm",
-    "cut myself",
-    "overdose",
-    "no reason to live",
-]
-
 
 async def stream_chat_graph(
     user_id: str,
@@ -150,8 +142,7 @@ async def stream_chat_graph(
         return
 
     # ── Step 1: Pre-check — Immediate Crisis Intervention (Section 8) ─────────
-    msg_lower = user_message.lower()
-    if any(kw in msg_lower for kw in _CRISIS_KEYWORDS):
+    if contains_crisis_signal(user_message):
         logger.critical(
             "Crisis keyword detected in stream — user=%s session=%s",
             user_id,
@@ -242,6 +233,13 @@ async def stream_chat_graph(
     )
     history_for_hint = [decrypt_message_doc(msg) for msg in history_docs]
     anonymized_user_message = anonymize_text(user_message)
+    risk_decision = await evaluate_turn_risk(
+        db,
+        user_id=user_id,
+        session_id=session_id,
+        message=user_message,
+        opening_turn=False,
+    )
     formatted_system = format_system_prompt(
         graph_context=graph_context,
         user_memory=user_context.get("user_memory"),
@@ -263,7 +261,14 @@ async def stream_chat_graph(
             user_message,
             history_for_hint,
             opening_turn=False,
+            risk_intensity_score=risk_decision.score.risk_intensity_score,
+            persistent_distress=risk_decision.persistent_distress,
+            attach_psychiatrist_card=risk_decision.attach_psychiatrist_card,
+            action_card_context=risk_decision.action_card_context,
         ).as_prompt_block(),
+        action_card_context=format_action_card_context(
+            risk_decision.action_card_context
+        ),
     )
 
     raw_messages = [SystemMessage(content=formatted_system)]
@@ -342,6 +347,12 @@ async def stream_chat_graph(
     full_text = "".join(full_response_chunks)
     clean_reply, cards = parse_action_cards(full_text)
     attach_apm_execution_metadata(cards, user_id)
+    cards = ensure_psychiatrist_card(
+        cards,
+        attach=risk_decision.attach_psychiatrist_card,
+        pattern_id=risk_decision.pattern_id,
+        trigger_reason=risk_decision.trigger_reason,
+    )
 
     if cards:
         for card in cards:

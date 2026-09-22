@@ -34,9 +34,85 @@ import json
 import logging
 import re
 import secrets
-from typing import List, Tuple
+from typing import List, Optional, Tuple
 
-from schemas import ActionCard
+from schemas import ActionCard, CardType
+
+PSYCHIATRIST_CARD_ID = "card_psychiatrist_v1"
+CRISIS_CARD_ID = "card_crisis_support_v1"
+
+CRISIS_FAST_TRACK_REPLY = (
+    "If you are in distress or having thoughts of self-harm, "
+    "please know that you are not alone. Immediate support is available: "
+    "Tele-MANAS 14416, Vandrevala +91 9999 666 555, "
+    "KIRAN 1800-599-0019, AASRA +91 9820466726."
+)
+
+
+def build_crisis_support_card() -> ActionCard:
+    """Immediate emergency-path card — not the 3-turn psychiatrist referral."""
+    return ActionCard(
+        card_type=CardType.BOOKING,
+        card_id=CRISIS_CARD_ID,
+        title="Connect to Professional Crisis Support",
+        subtitle="Speak to a trained counselor immediately",
+        cta_label="Get help now",
+        action_payload={
+            "type": "CRISIS_SUPPORT",
+            "flow": "crisis_helpline_call",
+            "card_id": CRISIS_CARD_ID,
+            "execution_nonce": secrets.token_urlsafe(18),
+        },
+    )
+
+
+def build_psychiatrist_referral_card(
+    *,
+    pattern_id: Optional[str] = None,
+    trigger_reason: str = "",
+) -> ActionCard:
+    """Gentle Professional Care Hub card — never alarmist."""
+    nonce = secrets.token_urlsafe(18)
+    return ActionCard(
+        card_type=CardType.BOOKING,
+        card_id=PSYCHIATRIST_CARD_ID,
+        title="Speak with a Licensed Psychiatrist",
+        subtitle="In-app video or text sessions available in under 3 minutes",
+        cta_label="Explore Care Options",
+        action_payload={
+            "type": "PSYCHIATRIST_REFERRAL",
+            "flow": "psychiatrist_referral",
+            "card_id": PSYCHIATRIST_CARD_ID,
+            "execution_nonce": nonce,
+            "pattern_id": pattern_id,
+            "trigger_reason": trigger_reason,
+        },
+    )
+
+
+def ensure_psychiatrist_card(
+    cards: List[ActionCard],
+    *,
+    attach: bool,
+    pattern_id: Optional[str] = None,
+    trigger_reason: str = "",
+) -> List[ActionCard]:
+    """Append the referral card once if the window requested it."""
+    if not attach:
+        return cards
+    already = any(
+        (card.card_id == PSYCHIATRIST_CARD_ID)
+        or (card.action_payload or {}).get("type") == "PSYCHIATRIST_REFERRAL"
+        or card.card_type == CardType.BOOKING
+        for card in cards
+    )
+    if already:
+        return cards
+    return list(cards) + [
+        build_psychiatrist_referral_card(
+            pattern_id=pattern_id, trigger_reason=trigger_reason
+        )
+    ]
 
 logger = logging.getLogger(__name__)
 

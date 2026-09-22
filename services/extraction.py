@@ -233,12 +233,24 @@ async def _extract_metadata(user_message: str, ai_reply: str) -> SessionExtracti
     # Parse the JSON and validate against the Pydantic schema
     payload: Dict[str, Any] = json.loads(cleaned)
     extraction = SessionExtraction(**payload)
+    from services.risk_assessor import score_turn
+
+    scored = score_turn(user_message)
+    extraction = extraction.model_copy(
+        update={
+            "risk_intensity_score": scored.risk_intensity_score,
+            "valence": scored.valence,
+            "arousal": scored.arousal,
+            "confidence_score": scored.confidence_score,
+        }
+    )
 
     logger.info(
-        "Insight extraction complete — emotions=%s, themes=%s, crisis=%s",
+        "Insight extraction complete — emotions=%s, themes=%s, crisis=%s, risk=%.1f",
         extraction.detected_emotions,
         extraction.core_themes,
         extraction.crisis_signal_detected,
+        extraction.risk_intensity_score,
     )
 
     return extraction
