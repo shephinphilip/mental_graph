@@ -33,6 +33,7 @@ conversational reply even if the LLM produces a malformed card.
 import json
 import logging
 import re
+import secrets
 from typing import List, Tuple
 
 from schemas import ActionCard
@@ -133,3 +134,19 @@ def parse_action_cards(raw_output: str) -> Tuple[str, List[ActionCard]]:
         )
 
     return clean_reply, cards
+
+
+def attach_apm_execution_metadata(
+    cards: List[ActionCard], user_id: str
+) -> List[ActionCard]:
+    """
+    Add an opaque execution nonce only to APM-backed cards.
+
+    The feedback endpoint still verifies edge ownership; the nonce merely makes
+    retries idempotent and is not an authorization credential.
+    """
+    for card in cards:
+        payload = card.action_payload
+        if payload.get("edge_id") and payload.get("intervention_id"):
+            payload["execution_nonce"] = secrets.token_urlsafe(18)
+    return cards

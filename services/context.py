@@ -40,11 +40,19 @@ from typing import Any, Dict, List
 from motor.motor_asyncio import AsyncIOMotorDatabase
 
 from config import get_settings
+from services.marks import academic_context_for_turn
+from services.users import get_by_identifier
 
 logger = logging.getLogger(__name__)
 
 
-async def fetch_user_context(db: AsyncIOMotorDatabase, user_id: str) -> Dict[str, Any]:
+async def fetch_user_context(
+    db: AsyncIOMotorDatabase,
+    user_id: str,
+    session_id: str = "",
+    user_message: str = "",
+    opening_turn: bool = False,
+) -> Dict[str, Any]:
     """
     Aggregate cross-application context for a single user.
 
@@ -58,6 +66,12 @@ async def fetch_user_context(db: AsyncIOMotorDatabase, user_id: str) -> Dict[str
         The Motor async database handle (injected by the route layer).
     user_id : str
         The unique user identifier used to query all collections.
+    session_id : str, optional
+        Current session — used to load a *previous* session's transcript.
+    user_message : str, optional
+        Current turn text. Marks are fetched only for academic-looking turns.
+    opening_turn : bool
+        True when Zenark is opening a new session (skip marks injection).
 
     Returns
     -------
@@ -82,6 +96,14 @@ async def fetch_user_context(db: AsyncIOMotorDatabase, user_id: str) -> Dict[str
     user_memory = await _fetch_user_memory(db, user_id)
     recent_moods = await _fetch_recent_moods(db, user_id, settings.MOOD_LOG_LOOKBACK_DAYS)
     active_habits = await _fetch_active_habits(db, user_id)
+    profile_fields = await _fetch_profile_and_structured_context(db, user_id)
+    last_session = await _fetch_last_session_context(db, user_id, session_id)
+
+    marks_block = await academic_context_for_turn(
+        db, user_id, user_message, opening_turn=opening_turn
+    )
+    if marks_block:
+        profile_fields["academic_context"] = marks_block
 
     logger.debug(
         "Context aggregated for user=%s — memory=%d chars, moods=%d chars, habits=%d chars",
@@ -95,6 +117,8 @@ async def fetch_user_context(db: AsyncIOMotorDatabase, user_id: str) -> Dict[str
         "user_memory": user_memory,
         "recent_moods": recent_moods,
         "active_habits": active_habits,
+        "last_session_context": last_session,
+        **profile_fields,
     }
 
 
@@ -134,10 +158,7 @@ async def _fetch_user_memory(db: AsyncIOMotorDatabase, user_id: str) -> str:
         Propagated to the caller if the MongoDB query fails.
     """
     # Only fetch the fields we need — avoids pulling large documents
-    user_doc = await db["users"].find_one(
-        {"user_id": user_id},
-        {"memory_summary": 1, "key_takeaways": 1},
-    )
+    user_doc = await get_by_identifier(db, user_id)
 
     # No user document yet (first-time user or new session)
     if not user_doc:
@@ -280,3 +301,129 @@ async def _fetch_active_habits(db: AsyncIOMotorDatabase, user_id: str) -> str:
         habits.append(line)
 
     return "\n".join(habits) if habits else "No active habits tracked."
+
+
+def _stringify_structured_block(value: Any, empty_message: str) -> str:
+    """Turn optional stored academic/attendance/assessment payloads into prompt text."""
+    if value is None or value == "" or value == [] or value == {}:
+        return empty_message
+    if isinstance(value, str):
+        return value
+    if isinstance(value, list):
+        lines = [f"• {item}" for item in value if item]
+        return "\n".join(lines) if lines else empty_message
+    if isinstance(value, dict):
+        lines = [f"• {key}: {val}" for key, val in value.items() if val not in (None, "", [], {})]
+        return "\n".join(lines) if lines else empty_message
+    return str(value)
+
+
+async def _fetch_profile_and_structured_context(
+    db: AsyncIOMotorDatabase, user_id: str
+) -> Dict[str, str]:
+    """
+    Load age/setting plus optional academic, attendance, and assessment summaries.
+
+    Missing collections or fields must yield the explicit empty sentences the
+    system prompt checks for, so the model does not invent stored marks.
+    """
+    user_doc = await get_by_identifier(db, user_id)
+
+    if not user_doc:
+        return {
+            "user_profile": (
+                "Age and setting unknown. Do not assume an age band. Let their language lead."
+            ),
+            "academic_context": "No academic data available",
+            "attendance_context": "No attendance data available",
+            "assessment_context": "No assessment data available",
+        }
+
+    profile_parts: List[str] = []
+    if user_doc.get("age") is not None:
+        profile_parts.append(f"Age: {user_doc['age']}")
+    if user_doc.get("name"):
+        profile_parts.append(f"Name: {user_doc['name']}")
+    if user_doc.get("age_band"):
+        profile_parts.append(f"Age band: {user_doc['age_band']}")
+    class_label = user_doc.get("class") or user_doc.get("grade") or user_doc.get("class_level")
+    if class_label:
+        profile_parts.append(f"Class: {class_label}")
+    if user_doc.get("school"):
+        profile_parts.append(f"School: {user_doc['school']}")
+    if user_doc.get("school_board") or user_doc.get("board"):
+        profile_parts.append(f"Board: {user_doc.get('school_board') or user_doc.get('board')}")
+    if user_doc.get("preferred_language"):
+        profile_parts.append(f"Preferred language: {user_doc['preferred_language']}")
+    if user_doc.get("chief_concern"):
+        profile_parts.append(f"Chief concern on file: {user_doc['chief_concern']}")
+    if user_doc.get("city"):
+        profile_parts.append(f"City: {user_doc['city']}")
+    if user_doc.get("tools_used"):
+        profile_parts.append(
+            _stringify_structured_block(user_doc.get("tools_used"), "")
+        )
+
+    academic = user_doc.get("academic_summary") or user_doc.get("academic_data")
+    attendance = user_doc.get("attendance_summary") or user_doc.get("attendance_data")
+    assessment = user_doc.get("assessment_summary") or user_doc.get("gds_summary")
+
+    return {
+        "user_profile": (
+            "\n".join(p for p in profile_parts if p)
+            or "Age and setting unknown. Do not assume an age band. Let their language lead."
+        ),
+        "academic_context": _stringify_structured_block(academic, "No academic data available"),
+        "attendance_context": _stringify_structured_block(
+            attendance, "No attendance data available"
+        ),
+        "assessment_context": _stringify_structured_block(
+            assessment, "No assessment data available"
+        ),
+    }
+
+
+async def _fetch_last_session_context(
+    db: AsyncIOMotorDatabase, user_id: str, current_session_id: str
+) -> str:
+    """Load a compact transcript from the user's most recent *other* session."""
+    query: Dict[str, Any] = {"user_id": user_id}
+    if current_session_id:
+        query["session_id"] = {"$ne": current_session_id}
+
+    latest = await db["messages"].find_one(query, sort=[("created_at", -1)])
+    if not latest:
+        return "No previous session. This is the first conversation on file."
+
+    prior_session_id = latest.get("session_id")
+    cursor = (
+        db["messages"]
+        .find(
+            {"user_id": user_id, "session_id": prior_session_id},
+            {"role": 1, "content": 1, "created_at": 1},
+        )
+        .sort("created_at", -1)
+        .limit(8)
+    )
+    docs = await cursor.to_list(length=8)
+    docs.reverse()
+
+    from services.security import decrypt_payload
+
+    lines = []
+    for doc in docs:
+        role = "Student" if doc.get("role") == "user" else "Zenark"
+        content = decrypt_payload(doc.get("content", ""))
+        snippet = content.replace("\n", " ").strip()[:180]
+        lines.append(f"{role}: {snippet}")
+
+    when = latest.get("created_at")
+    when_str = when.strftime("%d %b %Y") if hasattr(when, "strftime") else ""
+    header = f"Previous session {prior_session_id}"
+    if when_str:
+        header += f" (last activity {when_str})"
+    return (
+        header
+        + ". Refer to this naturally if useful; do not recap unless it matters.\n"
+        + "\n".join(lines)
+    )

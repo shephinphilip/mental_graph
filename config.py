@@ -31,22 +31,24 @@ class Settings(BaseSettings):
         extra="ignore",
     )
 
-    # ── AWS Bedrock (Primary LLM) ─────────────────────────────────────────────
-    AWS_REGION: str = "us-east-1"
+    # ── AWS Bedrock (Primary & Fallback LLMs) ─────────────────────────────────
+    AWS_REGION: str = "ap-south-1"
     AWS_ACCESS_KEY_ID: str = ""
     AWS_SECRET_ACCESS_KEY: str = ""
-
-    # ── Sarvam AI (Fallback LLM) ──────────────────────────────────────────────
-    SARVAM_API_KEY: str = ""
-    SARVAM_BASE_URL: Optional[str] = "https://api.sarvam.ai/v1"
 
     # ── MongoDB ──────────────────────────────────────────────────────────────
     MONGODB_URI: str = "mongodb://localhost:27017"
     DATABASE_NAME: str = "mental_health"
 
-    # ── LLM Model Configuration ──────────────────────────────────────────────
-    PRIMARY_MODEL: str = "google.gemma-2-9b-it"
-    FALLBACK_MODEL: str = "sarvam-2b"
+    # ── Bedrock Model Identifiers ─────────────────────────────────────────────
+    BEDROCK_MODEL: str = "google.gemma-3-27b-it"
+    BEDROCK_GEMMA_MODEL_ID: str = "google.gemma-3-27b-it"
+    BEDROCK_SARVAM_MODEL_ID: str = "sarvam.sarvam-m:0"
+
+    PRIMARY_MODEL: str = "google.gemma-3-27b-it"
+    # Backward-compatible alias. Runtime fallback selection is intentionally
+    # pinned to BEDROCK_SARVAM_MODEL_ID in llm_provider.py.
+    FALLBACK_MODEL: str = "sarvam.sarvam-m:0"
     LLM_TEMPERATURE: float = 0.7
 
     # ── MongoDB Graph Traversal ───────────────────────────────────────────────
@@ -55,6 +57,16 @@ class Settings(BaseSettings):
     # ── Security & Privacy ────────────────────────────────────────────────────
     ENCRYPTION_SECRET_KEY: str = "gAAAAABl_secret_key_placeholder_32bytes_len="
     ENFORCE_PII_ANONYMIZATION: bool = True
+    AUTH_SIGNING_SECRET: str = "replace-this-development-auth-secret"
+    AUTH_TOKEN_TTL_SECONDS: int = 43_200
+
+    # ── Adaptive Psychological Memory ────────────────────────────────────────
+    APM_RECOMMENDATION_CONFIDENCE: float = 0.4
+    APM_TRIGGER_DECAY_PER_DAY: float = 0.002
+    APM_EVOLUTION_DECAY_PER_DAY: float = 0.003
+    APM_RECOVERY_DECAY_PER_DAY: float = 0.02
+    APM_REINFORCEMENT_DECAY_PER_DAY: float = 0.01
+    APM_FAILURE_PENALTY: float = 0.12
 
     # ── Crisis Helplines (India Default) ─────────────────────────────────────
     CRISIS_HELPLINE_TELE_MANAS: str = "14416"

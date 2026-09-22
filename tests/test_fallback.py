@@ -26,6 +26,7 @@ def _make_mock_db():
     msg_cursor.limit = MagicMock(return_value=msg_cursor)
     msg_cursor.to_list = AsyncMock(return_value=[])
     db["messages"].find = MagicMock(return_value=msg_cursor)
+    db["messages"].find_one = AsyncMock(return_value=None)
 
     db["messages"].insert_one = AsyncMock()
     db["action_card_logs"].insert_many = AsyncMock()

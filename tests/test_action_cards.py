@@ -13,7 +13,7 @@ Covers:
 import pytest
 
 from schemas import ActionCard, CardType
-from services.action_cards import parse_action_cards
+from services.action_cards import attach_apm_execution_metadata, parse_action_cards
 
 
 # ── Single Card ─────────────────────────────────────────────────────────────
@@ -184,3 +184,22 @@ def test_extra_whitespace_around_card():
 
     assert "Some reply text" in reply
     assert len(cards) == 1
+
+
+def test_apm_card_gets_execution_nonce_but_regular_card_does_not():
+    apm = ActionCard(
+        card_type=CardType.TOOL,
+        title="Grounding",
+        action_payload={
+            "edge_id": "apme_owner__edge",
+            "intervention_id": "apm_owner__tool",
+        },
+    )
+    regular = ActionCard(
+        card_type=CardType.TOOL,
+        title="Breathing",
+        action_payload={"resource_id": "breathing"},
+    )
+    attach_apm_execution_metadata([apm, regular], "u1")
+    assert apm.action_payload["execution_nonce"]
+    assert "execution_nonce" not in regular.action_payload

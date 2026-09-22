@@ -148,6 +148,83 @@ class ChatMessageResponse(BaseModel):
     action_cards: List[ActionCard] = []
 
 
+class LoginRequest(BaseModel):
+    email: str
+    password: str
+
+
+class LoginResponse(BaseModel):
+    user_id: str
+    access_token: str
+    token_type: str = "bearer"
+    email: Optional[str] = None
+    name: Optional[str] = None
+    student_class: Optional[str] = None
+    school: Optional[str] = None
+    preferred_language: Optional[str] = None
+    age: Optional[int] = None
+    chief_concern: Optional[str] = None
+    board: Optional[str] = None
+    personalization_consent: bool = False
+
+
+class WelcomeRequest(BaseModel):
+    user_id: str
+    session_id: str
+
+
+class PersonalizationConsentRequest(BaseModel):
+    enabled: bool
+
+
+class APMFeedbackRequest(BaseModel):
+    edge_id: str
+    intervention_id: str
+    execution_nonce: str
+    event_type: str
+    before_state: Optional[float] = Field(default=None, ge=-1.0, le=1.0)
+    after_state: Optional[float] = Field(default=None, ge=-1.0, le=1.0)
+
+
+class APMNodeType(str, Enum):
+    TRIGGER = "TRIGGER"
+    LATENT_STATE = "LATENT_STATE"
+    INTERVENTION = "INTERVENTION"
+    OUTCOME = "OUTCOME"
+    CONTEXT = "CONTEXT"
+
+
+class APMRelationType(str, Enum):
+    TRIGGERS = "TRIGGERS"
+    EVOLVES_INTO = "EVOLVES_INTO"
+    RECOVERED_BY = "RECOVERED_BY"
+    REINFORCES = "REINFORCES"
+
+
+class APMObservation(BaseModel):
+    node_type: APMNodeType
+    label: str = Field(min_length=1, max_length=120)
+    aliases: List[str] = Field(default_factory=list, max_length=8)
+    valence: Optional[float] = Field(default=None, ge=-1.0, le=1.0)
+    arousal: Optional[float] = Field(default=None, ge=0.0, le=1.0)
+    confidence_score: float = Field(default=0.5, ge=0.0, le=1.0)
+
+
+class APMTransition(BaseModel):
+    source_type: APMNodeType
+    source_label: str = Field(min_length=1, max_length=120)
+    target_type: APMNodeType
+    target_label: str = Field(min_length=1, max_length=120)
+    relation_type: APMRelationType
+    confidence_score: float = Field(default=0.5, ge=0.0, le=1.0)
+
+
+class APMExtraction(BaseModel):
+    observations: List[APMObservation] = Field(default_factory=list, max_length=12)
+    transitions: List[APMTransition] = Field(default_factory=list, max_length=12)
+    crisis_signal_detected: bool = False
+
+
 # ════════════════════════════════════════════════════════════════════════════
 # Section 3 — Downstream Extraction Pipeline
 # ════════════════════════════════════════════════════════════════════════════

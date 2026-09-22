@@ -91,9 +91,13 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     try:
         from services.graph_rag import ensure_graph_constraints
         await ensure_graph_constraints(app.state.db)
+        from services.apm import ensure_apm_indexes
+        await ensure_apm_indexes(app.state.db)
+        from services.chat_history import ensure_message_indexes
+        await ensure_message_indexes(app.state.db)
     except Exception:
         logger.warning(
-            "Could not create MongoDB graph indexes — graph features may be slower. "
+            "Could not create MongoDB memory indexes — memory features may be slower. "
             "This is non-fatal; the application will continue.",
             exc_info=True,
         )

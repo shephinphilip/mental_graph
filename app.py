@@ -37,16 +37,33 @@ GET /health
 import logging
 from typing import Optional
 
-from fastapi import BackgroundTasks, Depends, FastAPI, HTTPException
+from fastapi import BackgroundTasks, Depends, FastAPI, Header, HTTPException
 from fastapi.responses import StreamingResponse
 from motor.motor_asyncio import AsyncIOMotorDatabase
 
 from database import get_db, lifespan
-from schemas import ChatMessageRequest, ChatMessageResponse, SessionResumeResponse
+from schemas import (
+    ChatMessageRequest,
+    ChatMessageResponse,
+    APMFeedbackRequest,
+    LoginRequest,
+    LoginResponse,
+    PersonalizationConsentRequest,
+    SessionResumeResponse,
+    WelcomeRequest,
+)
 from services.extraction import run_background_extraction
 from services.graph import run_chat_graph
 from services.session_resume import resume_user_session
 from services.streaming import stream_chat_graph
+from services.apm import delete_adaptive_memory, record_intervention_feedback
+from services.users import (
+    authenticate,
+    issue_access_token,
+    set_personalization_consent,
+    verify_access_token,
+)
+from prompts import WELCOME_USER_CUE
 
 # ── Logging ──────────────────────────────────────────────────────────────────
 logging.basicConfig(
@@ -73,10 +90,150 @@ app = FastAPI(
 # ════════════════════════════════════════════════════════════════════════════
 
 
+async def authenticated_user_id(
+    authorization: Optional[str] = Header(default=None),
+) -> str:
+    if not authorization or not authorization.startswith("Bearer "):
+        raise HTTPException(status_code=401, detail="Bearer token required")
+    try:
+        return verify_access_token(authorization[7:].strip())
+    except ValueError as exc:
+        raise HTTPException(status_code=401, detail=str(exc)) from exc
+
+
+def _assert_owner(claimed_user_id: str, authenticated_id: str) -> None:
+    if claimed_user_id != authenticated_id:
+        raise HTTPException(status_code=403, detail="User identity mismatch")
+
+
+@app.post("/auth/login", response_model=LoginResponse)
+async def login(payload: LoginRequest, db: AsyncIOMotorDatabase = Depends(get_db)):
+    """Authenticate by email. Password is never returned."""
+    user = await authenticate(db, payload.email, payload.password)
+    if not user:
+        raise HTTPException(status_code=401, detail="Invalid email or password")
+    return LoginResponse(
+        user_id=user["user_id"],
+        access_token=issue_access_token(user["user_id"]),
+        email=user.get("email"),
+        name=user.get("name"),
+        student_class=user.get("class"),
+        school=user.get("school"),
+        preferred_language=user.get("preferred_language"),
+        age=user.get("age"),
+        chief_concern=user.get("chief_concern"),
+        board=user.get("board"),
+        personalization_consent=user.get("personalization_consent", False),
+    )
+
+
+@app.post("/api/memory/consent")
+async def update_memory_consent(
+    payload: PersonalizationConsentRequest,
+    user_id: str = Depends(authenticated_user_id),
+    db: AsyncIOMotorDatabase = Depends(get_db),
+):
+    if not await set_personalization_consent(db, user_id, payload.enabled):
+        raise HTTPException(status_code=404, detail="Active user not found")
+    return {"enabled": payload.enabled}
+
+
+@app.post("/api/memory/feedback")
+async def intervention_feedback(
+    payload: APMFeedbackRequest,
+    user_id: str = Depends(authenticated_user_id),
+    db: AsyncIOMotorDatabase = Depends(get_db),
+):
+    try:
+        recorded = await record_intervention_feedback(
+            db,
+            user_id,
+            edge_id=payload.edge_id,
+            intervention_id=payload.intervention_id,
+            execution_nonce=payload.execution_nonce,
+            event_type=payload.event_type,
+            before_state=payload.before_state,
+            after_state=payload.after_state,
+        )
+        return {"recorded": recorded}
+    except PermissionError as exc:
+        raise HTTPException(status_code=403, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@app.delete("/api/memory")
+async def delete_memory(
+    user_id: str = Depends(authenticated_user_id),
+    db: AsyncIOMotorDatabase = Depends(get_db),
+):
+    deleted = await delete_adaptive_memory(db, user_id)
+    return {"deleted": deleted}
+
+
+@app.post("/chat/welcome", response_model=ChatMessageResponse)
+async def welcome_message(
+    payload: WelcomeRequest,
+    authenticated_id: str = Depends(authenticated_user_id),
+    db: AsyncIOMotorDatabase = Depends(get_db),
+):
+    """
+    AI-initiated opening for a new session. Persists only the assistant turn.
+
+    Idempotent: if a welcome (``message_kind=welcome``) already exists for the
+    session, return it. If the session already has other messages, do not
+    insert a new welcome — return the latest assistant line when available.
+    """
+    from services.chat_history import (
+        get_latest_message,
+        get_welcome_message,
+        session_has_any_messages,
+    )
+    from services.security import decrypt_payload
+
+    _assert_owner(payload.user_id, authenticated_id)
+
+    existing_welcome = await get_welcome_message(
+        db, payload.user_id, payload.session_id
+    )
+    if existing_welcome:
+        return ChatMessageResponse(
+            session_id=payload.session_id,
+            reply=decrypt_payload(existing_welcome.get("content", "")),
+            action_cards=[],
+        )
+
+    if await session_has_any_messages(db, payload.user_id, payload.session_id):
+        latest = await get_latest_message(db, payload.user_id, payload.session_id)
+        reply = ""
+        if latest and latest.get("role") == "assistant":
+            reply = decrypt_payload(latest.get("content", ""))
+        return ChatMessageResponse(
+            session_id=payload.session_id,
+            reply=reply,
+            action_cards=[],
+        )
+
+    try:
+        response_data = await run_chat_graph(
+            user_id=payload.user_id,
+            session_id=payload.session_id,
+            user_message=WELCOME_USER_CUE,
+            db=db,
+            persist_user_message=False,
+            opening_turn=True,
+        )
+        return response_data
+    except Exception as exc:
+        logger.exception("Welcome turn failed for user=%s: %s", payload.user_id, exc)
+        raise HTTPException(status_code=500, detail=str(exc))
+
+
 @app.post("/chat/send", response_model=ChatMessageResponse)
 async def send_message(
     payload: ChatMessageRequest,
     background_tasks: BackgroundTasks,
+    authenticated_id: str = Depends(authenticated_user_id),
     db: AsyncIOMotorDatabase = Depends(get_db),
 ):
     """
@@ -84,6 +241,7 @@ async def send_message(
 
     Executes the full LangGraph pipeline synchronously and returns the complete reply.
     """
+    _assert_owner(payload.user_id, authenticated_id)
     try:
         logger.info(
             "Incoming JSON message — user=%s session=%s",
@@ -123,11 +281,13 @@ async def send_message(
 async def stream_message(
     payload: ChatMessageRequest,
     background_tasks: BackgroundTasks,
+    authenticated_id: str = Depends(authenticated_user_id),
     db: AsyncIOMotorDatabase = Depends(get_db),
 ):
     """
     Stream the AI response in real-time using Server-Sent Events (SSE).
     """
+    _assert_owner(payload.user_id, authenticated_id)
     try:
         logger.info(
             "Incoming SSE stream request — user=%s session=%s",
@@ -173,11 +333,13 @@ async def stream_message(
 async def resume_session(
     user_id: str,
     session_id: Optional[str] = None,
+    authenticated_id: str = Depends(authenticated_user_id),
     db: AsyncIOMotorDatabase = Depends(get_db),
 ):
     """
     Rapid session resumption endpoint (< 500 ms SLA).
     """
+    _assert_owner(user_id, authenticated_id)
     try:
         return await resume_user_session(db, user_id, session_id)
     except Exception as exc:

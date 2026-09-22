@@ -33,6 +33,7 @@ def _make_mock_db():
     msg_cursor.limit = MagicMock(return_value=msg_cursor)
     msg_cursor.to_list = AsyncMock(return_value=[])
     db["messages"].find = MagicMock(return_value=msg_cursor)
+    db["messages"].find_one = AsyncMock(return_value=None)
 
     db["messages"].insert_one = AsyncMock()
     db["action_card_logs"].insert_many = AsyncMock()
@@ -97,6 +98,8 @@ async def test_streaming_fallback_before_first_token():
     mock_db = _make_mock_db()
 
     async def failing_primary(messages):
+        if False:
+            yield None
         raise RuntimeError("Primary Bedrock error before first token")
 
     async def fallback_astream(messages):
@@ -123,8 +126,46 @@ async def test_streaming_fallback_before_first_token():
             events.append(sse_event)
 
     full_output = "".join(events)
+    mock_get_fallback.assert_called_once_with()
     assert "Fallback response token" in full_output
     assert "event: done" in full_output
+
+
+@pytest.mark.asyncio
+async def test_empty_primary_chunks_do_not_block_pre_token_fallback():
+    """An empty provider chunk is not a client-visible first token."""
+    mock_db = _make_mock_db()
+
+    async def primary_with_empty_chunk(messages):
+        yield MagicMock(content="")
+        raise RuntimeError("Primary failed before visible output")
+
+    async def fallback_astream(messages):
+        yield MagicMock(content="Sarvam starts cleanly")
+
+    with patch("services.streaming.get_primary_llm") as mock_get_primary, \
+         patch("services.streaming.get_fallback_llm") as mock_get_fallback:
+        primary = MagicMock()
+        primary.astream = primary_with_empty_chunk
+        mock_get_primary.return_value = primary
+        fallback = MagicMock()
+        fallback.astream = fallback_astream
+        mock_get_fallback.return_value = fallback
+
+        events = [
+            event
+            async for event in stream_chat_graph(
+                user_id="user_empty_chunk",
+                session_id="sess_empty_chunk",
+                user_message="Test empty chunk",
+                db=mock_db,
+            )
+        ]
+
+    mock_get_fallback.assert_called_once_with()
+    output = "".join(events)
+    assert "Sarvam starts cleanly" in output
+    assert "event: done" in output
 
 
 @pytest.mark.asyncio
@@ -156,3 +197,6 @@ async def test_streaming_mid_stream_failure_terminates():
     full_output = "".join(events)
     assert "First token" in full_output
     assert "event: error" in full_output
+    assert "Response stream interrupted" in full_output
+    assert "event: done" not in full_output
+    assert mock_db["messages"].insert_one.await_count == 0

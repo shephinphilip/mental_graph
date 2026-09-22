@@ -53,14 +53,46 @@ from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 from motor.motor_asyncio import AsyncIOMotorDatabase
 
 from config import get_settings
-from llm_provider import get_fallback_llm, get_primary_llm
-from prompts import SYSTEM_PROMPT
+from llm_provider import get_fallback_llm, get_primary_llm, sanitize_messages_for_bedrock
+from prompts import (
+    dropped_session_hint,
+    format_system_prompt,
+    session_phase_instructions,
+)
 from schemas import ActionCard, CardType
-from services.action_cards import parse_action_cards
+from services.action_cards import attach_apm_execution_metadata, parse_action_cards
+from services.apm import get_adaptive_memory_context
+from services.chat_history import (
+    decrypt_message_doc,
+    find_completed_user_turn,
+    load_session_messages,
+    persist_user_and_assistant,
+)
 from services.context import fetch_user_context
-from services.security import anonymize_text, encrypt_payload
+from services.inner_council import deliberate as inner_council_deliberate
+from services.security import anonymize_text, decrypt_payload
 
 logger = logging.getLogger(__name__)
+
+
+def _extract_token_text(chunk) -> str:
+    """Extract string text from a streaming LLM chunk, handling strings, lists, or message objects."""
+    if hasattr(chunk, "content"):
+        c = chunk.content
+        if isinstance(c, str):
+            return c
+        elif isinstance(c, list):
+            res = []
+            for item in c:
+                if isinstance(item, str):
+                    res.append(item)
+                elif isinstance(item, dict) and "text" in item:
+                    res.append(item["text"])
+                else:
+                    res.append(str(item))
+            return "".join(res)
+        return str(c)
+    return str(chunk)
 
 # ── Crisis Keyword Detection ──────────────────────────────────────────────────
 _CRISIS_KEYWORDS = [
@@ -107,6 +139,15 @@ async def stream_chat_graph(
     """
     settings = get_settings()
     now = datetime.now(timezone.utc)
+
+    # Idempotent retry: replay stored assistant reply without regenerating.
+    existing = await find_completed_user_turn(db, user_id, session_id, user_message)
+    if existing:
+        reply = decrypt_payload(existing.get("content", ""))
+        for token in reply:
+            yield f"event: token\ndata: {json.dumps({'token': token})}\n\n"
+        yield f"event: done\ndata: {json.dumps({'status': 'completed'})}\n\n"
+        return
 
     # ── Step 1: Pre-check — Immediate Crisis Intervention (Section 8) ─────────
     msg_lower = user_message.lower()
@@ -155,27 +196,13 @@ async def stream_chat_graph(
 
         yield f"event: crisis_alert\ndata: {json.dumps(crisis_data)}\n\n"
 
-        enc_user_msg = encrypt_payload(user_message)
-        enc_reply = encrypt_payload(crisis_data["message"])
-
         try:
-            await db["messages"].insert_one(
-                {
-                    "session_id": session_id,
-                    "user_id": user_id,
-                    "role": "user",
-                    "content": enc_user_msg,
-                    "created_at": now,
-                }
-            )
-            await db["messages"].insert_one(
-                {
-                    "session_id": session_id,
-                    "user_id": user_id,
-                    "role": "assistant",
-                    "content": enc_reply,
-                    "created_at": now,
-                }
+            await persist_user_and_assistant(
+                db,
+                user_id=user_id,
+                session_id=session_id,
+                user_message=user_message,
+                assistant_reply=crisis_data["message"],
             )
         except Exception:
             logger.exception(
@@ -188,7 +215,12 @@ async def stream_chat_graph(
         return
 
     # ── Step 2: Fetch MongoDB Context (Memory & Graph) ────────────────────────
-    user_context = await fetch_user_context(db, user_id)
+    user_context = await fetch_user_context(
+        db, user_id, session_id=session_id, user_message=user_message
+    )
+    user_context["adaptive_memory_context"] = await get_adaptive_memory_context(
+        db, user_id, user_message
+    )
 
     graph_context = "No relational graph data available yet."
     try:
@@ -202,69 +234,86 @@ async def stream_chat_graph(
         )
 
     # ── Step 3: Load Session History ──────────────────────────────────────────
-    cursor = (
-        db["messages"]
-        .find(
-            {"session_id": session_id},
-            {"role": 1, "content": 1, "created_at": 1},
-        )
-        .sort("created_at", -1)
-        .limit(settings.MAX_HISTORY_MESSAGES)
+    history_docs = await load_session_messages(
+        db,
+        user_id,
+        session_id,
+        limit=settings.MAX_HISTORY_MESSAGES,
     )
-    history_docs = await cursor.to_list(length=settings.MAX_HISTORY_MESSAGES)
-    history_docs.reverse()
-
-    # ── Step 4: Build Message List ─────────────────────────────────────────────
+    history_for_hint = [decrypt_message_doc(msg) for msg in history_docs]
     anonymized_user_message = anonymize_text(user_message)
-
-    formatted_system = SYSTEM_PROMPT.format(
+    formatted_system = format_system_prompt(
         graph_context=graph_context,
-        user_memory=user_context.get("user_memory", "N/A"),
-        recent_moods=user_context.get("recent_moods", "N/A"),
-        active_habits=user_context.get("active_habits", "N/A"),
+        user_memory=user_context.get("user_memory"),
+        recent_moods=user_context.get("recent_moods"),
+        active_habits=user_context.get("active_habits"),
+        dropped_session_context=dropped_session_hint(history_for_hint),
+        user_profile=user_context.get("user_profile"),
+        academic_context=user_context.get("academic_context"),
+        attendance_context=user_context.get("attendance_context"),
+        assessment_context=user_context.get("assessment_context"),
+        last_session_context=user_context.get("last_session_context"),
+        adaptive_memory_context=user_context.get("adaptive_memory_context"),
+        session_phase=session_phase_instructions(
+            opening_turn=False,
+            message_history=history_for_hint,
+        ),
+        response_stance=inner_council_deliberate(
+            user_message,
+            history_for_hint,
+            opening_turn=False,
+        ).as_prompt_block(),
     )
 
-    messages = [SystemMessage(content=formatted_system)]
+    raw_messages = [SystemMessage(content=formatted_system)]
 
-    for msg in history_docs:
+    for msg in history_for_hint:
         role = msg.get("role", "user")
         content = msg.get("content", "")
         if role == "user":
-            messages.append(HumanMessage(content=content))
+            raw_messages.append(HumanMessage(content=content))
         else:
-            messages.append(AIMessage(content=content))
+            raw_messages.append(AIMessage(content=content))
 
-    messages.append(HumanMessage(content=anonymized_user_message))
+    raw_messages.append(HumanMessage(content=anonymized_user_message))
+
+    messages = sanitize_messages_for_bedrock(raw_messages)
 
     # ── Step 5: Stream from LLM (Pre-first-token fallback contract) ───────────
     primary_llm = get_primary_llm()
     full_response_chunks = []
-    first_token_emitted = False
+    client_token_emitted = False
 
     try:
         async for chunk in primary_llm.astream(messages):
-            first_token_emitted = True
-            token = chunk.content if hasattr(chunk, "content") else str(chunk)
+            token = _extract_token_text(chunk)
+            if not token:
+                continue
             full_response_chunks.append(token)
 
             if "<<<ACTION_CARD" not in token and "ACTION_CARD>>>" not in token:
                 event_payload = json.dumps({"token": token})
                 yield f"event: token\ndata: {event_payload}\n\n"
+                client_token_emitted = True
 
     except Exception as exc:
         logger.warning(
-            "Primary LLM streaming error (first_token_emitted=%s): %s",
-            first_token_emitted,
+            "Primary LLM streaming error (client_token_emitted=%s): %s",
+            client_token_emitted,
             exc,
         )
 
-        # Fallback contract: attempt fallback ONLY if 0 tokens emitted so far
-        if not first_token_emitted:
-            logger.info("Attempting streaming fallback to fallback LLM...")
+        # Provider switching is legal only before the client has received any
+        # token. Discard hidden/empty primary chunks before starting Sarvam.
+        if not client_token_emitted:
+            full_response_chunks.clear()
+            logger.info("Primary failed before first token; switching to Sarvam.")
             try:
                 fallback_llm = get_fallback_llm()
                 async for chunk in fallback_llm.astream(messages):
-                    token = chunk.content if hasattr(chunk, "content") else str(chunk)
+                    token = _extract_token_text(chunk)
+                    if not token:
+                        continue
                     full_response_chunks.append(token)
 
                     if "<<<ACTION_CARD" not in token and "ACTION_CARD>>>" not in token:
@@ -272,16 +321,26 @@ async def stream_chat_graph(
                         yield f"event: token\ndata: {event_payload}\n\n"
             except Exception as fallback_exc:
                 logger.error("Fallback LLM streaming also failed: %s", fallback_exc)
-                yield f"event: error\ndata: {json.dumps({'error': str(fallback_exc)})}\n\n"
+                payload = {
+                    "error": "Unable to start response stream",
+                    "retryable": True,
+                }
+                yield f"event: error\ndata: {json.dumps(payload)}\n\n"
                 return
         else:
-            # Mid-stream failure: DO NOT stitch responses, emit error and terminate safely
-            yield f"event: error\ndata: {json.dumps({'error': str(exc)})}\n\n"
+            # Never stitch providers after visible output. Do not persist the
+            # partial assistant response; the client can safely offer retry.
+            payload = {
+                "error": "Response stream interrupted",
+                "retryable": True,
+            }
+            yield f"event: error\ndata: {json.dumps(payload)}\n\n"
             return
 
     # ── Step 6: Post-processing — Action Card Parsing ─────────────────────────
     full_text = "".join(full_response_chunks)
     clean_reply, cards = parse_action_cards(full_text)
+    attach_apm_execution_metadata(cards, user_id)
 
     if cards:
         for card in cards:
@@ -305,28 +364,14 @@ async def stream_chat_graph(
                 session_id,
             )
 
-    # ── Step 7: Persist Messages (E2EE Encrypted) ─────────────────────────────
-    enc_user_msg = encrypt_payload(user_message)
-    enc_reply = encrypt_payload(clean_reply)
-
+    # ── Step 7: Persist Messages (idempotent, encrypted, ordered) ─────────────
     try:
-        await db["messages"].insert_one(
-            {
-                "session_id": session_id,
-                "user_id": user_id,
-                "role": "user",
-                "content": enc_user_msg,
-                "created_at": now,
-            }
-        )
-        await db["messages"].insert_one(
-            {
-                "session_id": session_id,
-                "user_id": user_id,
-                "role": "assistant",
-                "content": enc_reply,
-                "created_at": now,
-            }
+        await persist_user_and_assistant(
+            db,
+            user_id=user_id,
+            session_id=session_id,
+            user_message=user_message,
+            assistant_reply=clean_reply,
         )
     except Exception:
         logger.exception(

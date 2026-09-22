@@ -40,8 +40,8 @@ from typing import Any, Dict, List
 from motor.motor_asyncio import AsyncIOMotorDatabase
 
 from llm_provider import get_llm
-from prompts import EXTRACTION_PROMPT, GRAPH_EXTRACTION_PROMPT
-from schemas import ExtractedGraphData, GraphTuple, SessionExtraction
+from prompts import APM_EXTRACTION_PROMPT, EXTRACTION_PROMPT, GRAPH_EXTRACTION_PROMPT
+from schemas import APMExtraction, ExtractedGraphData, GraphTuple, SessionExtraction
 
 logger = logging.getLogger(__name__)
 
@@ -84,6 +84,8 @@ async def run_background_extraction(
         This function always returns ``None``.  All errors are logged
         internally and never propagated.
     """
+    extraction = None
+
     # ── Task 1: Insight extraction (emotions, themes, crisis) ─────────────────
     # Wrapped independently so a failure here does not prevent Task 2.
     try:
@@ -113,6 +115,26 @@ async def run_background_extraction(
     except Exception:
         logger.exception(
             "Graph tuple extraction failed for user=%s session=%s",
+            user_id,
+            session_id,
+        )
+
+    # ── Task 3: Consent-gated adaptive temporal memory ───────────────────────
+    try:
+        from services.apm import personalization_enabled, persist_apm_extraction
+
+        if (
+            extraction is not None
+            and not extraction.crisis_signal_detected
+            and await personalization_enabled(db, user_id)
+        ):
+            apm_extraction = await _extract_apm_observations(message, reply)
+            await persist_apm_extraction(
+                db, user_id, session_id, apm_extraction
+            )
+    except Exception:
+        logger.exception(
+            "Adaptive memory extraction failed for user=%s session=%s",
             user_id,
             session_id,
         )
@@ -369,6 +391,30 @@ async def _extract_graph_tuples(
     )
 
     return graph_data.tuples
+
+
+async def _extract_apm_observations(
+    user_message: str, ai_reply: str
+) -> APMExtraction:
+    """Extract minimized temporal APM facts after consent has been checked."""
+    from langchain_core.messages import HumanMessage, SystemMessage
+
+    formatted_prompt = APM_EXTRACTION_PROMPT.format(
+        user_message=user_message,
+        ai_reply=ai_reply,
+    )
+    messages = [
+        SystemMessage(
+            content=(
+                "You extract conservative, privacy-minimized adaptive memory. "
+                "Return ONLY valid JSON."
+            )
+        ),
+        HumanMessage(content=formatted_prompt),
+    ]
+    response = await get_llm().ainvoke(messages)
+    raw_text = response.content if hasattr(response, "content") else str(response)
+    return APMExtraction(**json.loads(_strip_markdown_fencing(raw_text)))
 
 
 # ── Shared Utilities ──────────────────────────────────────────────────────────

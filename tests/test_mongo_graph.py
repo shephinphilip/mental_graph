@@ -18,6 +18,7 @@ from services.mongo_graph import (
     format_graph_for_prompt,
     generate_node_id,
     get_user_graph_context,
+    upsert_relationship,
     upsert_graph_tuples,
 )
 
@@ -92,7 +93,36 @@ def test_generate_node_id_deterministic():
     id3 = generate_node_id("user_456", "Emotion", "Anxiety")
 
     assert id1 == id2
-    assert id1 == "emotion_anxiety"
+    assert id1 != id3
+    assert id1.endswith("__emotion_anxiety")
+    assert "user_123" not in id1
+
+
+def test_node_identity_includes_type_and_canonical_name():
+    anxiety = generate_node_id("user_123", "Emotion", " Anxiety ")
+    same_anxiety = generate_node_id("user_123", "Emotion", "ANXIETY")
+    trigger = generate_node_id("user_123", "Trigger", "Anxiety")
+
+    assert anxiety == same_anxiety
+    assert anxiety != trigger
+
+
+@pytest.mark.asyncio
+async def test_relationship_rejects_foreign_user_node_ids():
+    mock_db = _create_mock_mongo_db()
+    user_a_root = generate_node_id("user_A", "User", "User")
+    user_b_emotion = generate_node_id("user_B", "Emotion", "Anxiety")
+
+    with pytest.raises(ValueError, match="to_node_id does not belong"):
+        await upsert_relationship(
+            mock_db,
+            user_id="user_A",
+            from_node_id=user_a_root,
+            from_node_type="User",
+            relation="EXPERIENCES",
+            to_node_id=user_b_emotion,
+            to_node_type="Emotion",
+        )
 
 
 @pytest.mark.asyncio
@@ -163,6 +193,29 @@ async def test_user_isolation():
     context_b = await get_user_graph_context(mock_db, "user_B")
     assert "Euphoria" in context_b
     assert "Insomnia" not in context_b
+
+
+@pytest.mark.asyncio
+async def test_traversal_pipeline_enforces_user_isolation_at_every_join():
+    db = MagicMock()
+    captured = {}
+
+    def aggregate(pipeline):
+        captured["pipeline"] = pipeline
+        cursor = AsyncMock()
+        cursor.to_list = AsyncMock(return_value=[])
+        return cursor
+
+    db["graph_nodes"].aggregate = aggregate
+    await get_user_graph_context(db, "user_A")
+
+    pipeline = captured["pipeline"]
+    assert pipeline[0]["$match"]["user_id"] == "user_A"
+    graph_lookup = pipeline[1]["$graphLookup"]
+    assert graph_lookup["restrictSearchWithMatch"]["user_id"] == "user_A"
+
+    node_lookup = pipeline[4]["$lookup"]["pipeline"][0]["$match"]["$expr"]["$and"]
+    assert {"$eq": ["$user_id", "$$uid"]} in node_lookup
 
 
 def test_format_graph_for_prompt():

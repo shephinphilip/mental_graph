@@ -45,7 +45,7 @@ from motor.motor_asyncio import AsyncIOMotorDatabase
 
 from config import get_settings
 from schemas import SessionResumeResponse
-from services.security import decrypt_payload
+from services.chat_history import decrypt_message_doc, load_session_messages
 
 logger = logging.getLogger(__name__)
 
@@ -117,20 +117,7 @@ async def resume_user_session(
         )
 
     # ── Step 2: Fetch Recent Message History ──────────────────────────────────
-    # Retrieve the last 10 messages for this session, sorted newest-first for
-    # efficient use of the index LIMIT, then reverse to chronological order.
-    # Requires a compound index: { session_id: 1, user_id: 1, created_at: -1 }
-    cursor = (
-        db["messages"]
-        .find(
-            {"session_id": session_id, "user_id": user_id},
-            {"role": 1, "content": 1, "created_at": 1},  # Project only needed fields
-        )
-        .sort("created_at", -1)   # Newest first for efficient LIMIT
-        .limit(10)                # Cap at 10 messages for fast UI rendering
-    )
-    docs = await cursor.to_list(length=10)
-    docs.reverse()  # Restore chronological order (oldest first) for UI rendering
+    docs = await load_session_messages(db, user_id, session_id, limit=10)
 
     # ── Step 3: Build the Message List and Compute Dropped Context ────────────
     recent_messages: List[Dict[str, Any]] = []
@@ -138,11 +125,9 @@ async def resume_user_session(
     dropped_context: Optional[str] = None
 
     for doc in docs:
-        # Decrypt message content — stored as Fernet tokens if E2EE is enabled
-        content = decrypt_payload(doc.get("content", ""))
+        decrypted = decrypt_message_doc(doc)
+        content = decrypted["content"]
 
-        # Safely format the created_at timestamp as an ISO-8601 string.
-        # Motor returns Python datetime objects for BSON date fields.
         created_at = doc.get("created_at", "")
         created_at_str = (
             created_at.isoformat()
@@ -152,12 +137,11 @@ async def resume_user_session(
 
         recent_messages.append(
             {
-                "role": doc.get("role", "user"),
+                "role": decrypted["role"],
                 "content": content,
                 "timestamp": created_at_str,
             }
         )
-        # Track the last timestamp — used in the response's last_message_timestamp
         last_timestamp = created_at_str
 
     # ── Step 3b: Determine Dropped Session Context ────────────────────────────

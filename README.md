@@ -501,14 +501,60 @@ cp .env.example .env
 
 ---
 
+## Adaptive Psychological Memory
+
+APM is a separate, consent-gated temporal graph. It supplements
+`graph_nodes`/`graph_relationships`; it does not replace them.
+
+### Collections
+
+- `apm_nodes`: stable, user-scoped `TRIGGER`, `LATENT_STATE`,
+  `INTERVENTION`, `OUTCOME`, and `CONTEXT` concepts. Raw user IDs are not
+  embedded in object IDs.
+- `apm_edges`: temporal transitions and recovery evidence. Raw success and
+  failure counts are retained alongside a Bayesian score and relation-specific
+  decay rate.
+- `apm_events`: minimized, append-only observations and idempotent intervention
+  feedback. The unique execution nonce prevents duplicate reinforcement.
+
+### Recommendation boundary
+
+APM is optimized for explicitly reported benefit, never time spent, message
+count, opens, or return frequency. A memory may produce one action card only
+when:
+
+1. personalization consent is enabled;
+2. node and edge confidence are at least `0.4`;
+3. the edge has an explicit successful outcome;
+4. the latest explicit outcome is not a failure;
+5. lexical evidence makes it relevant to the current turn; and
+6. the turn is not a crisis turn.
+
+Bootstrapped and temporal-fallback memories are background-only. Outbound JITAI
+nudges are intentionally disabled; temporal eligibility is stored for a future
+release with separate opt-in, quiet hours, cooldowns, and frequency caps.
+
+### Feedback and scoring
+
+Action-card feedback is authenticated and user-scoped. Event insertion is
+idempotent on `(user_id, execution_nonce, event_type)`. Edge counters, version,
+timestamp, and Bayesian score are updated in one atomic MongoDB pipeline update.
+`TRIGGERS` and `EVOLVES_INTO` decay slowly; `RECOVERED_BY` decays faster and
+receives an additional bounded penalty after explicit failure.
+
+Disabling personalization stops APM extraction and retrieval. Existing APM
+records are not used while disabled. `DELETE /api/memory` permanently removes
+the authenticated user's `apm_nodes`, `apm_edges`, and `apm_events`; retention
+or export jobs can operate on the same user-scoped keys.
+
+---
+
 ## Quick Start
 
 ### Prerequisites
 - Python 3.11+
 - MongoDB (local or Atlas)
-- Neo4j (local or AuraDB)
-- Google Gemini API key
-- OpenAI API key
+- AWS Bedrock access to the configured Gemma primary and Sarvam fallback
 
 ### 1. Clone & install dependencies
 
@@ -583,7 +629,7 @@ pytest tests/ -v --asyncio-mode=auto
 - `decrypt_payload()` returns the original string on key mismatch or corruption rather than raising, to prevent data loss.
 
 ### PII Anonymization
-Before any user text is sent to external LLM APIs (Gemini / OpenAI), the following patterns are redacted:
+Before user text is sent to AWS Bedrock, the following patterns are redacted:
 - **Phone numbers** (Indian mobile `+91xxxxxxxxxx` + US format) → `[PHONE_REDACTED]`
 - **Email addresses** → `[EMAIL_REDACTED]`
 - **Aadhaar numbers** (12-digit) → `[ID_REDACTED]`

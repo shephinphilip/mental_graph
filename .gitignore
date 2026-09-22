@@ -3,4 +3,4 @@
 .env.example
 .pytest_cache
 __pycache__
-.cursor
+.cursor.env

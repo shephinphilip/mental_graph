@@ -50,6 +50,7 @@ Public API
 
 import logging
 import re
+from hashlib import sha256
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
@@ -171,26 +172,35 @@ async def ensure_graph_indexes(db: AsyncIOMotorDatabase) -> None:
 # ════════════════════════════════════════════════════════════════════════════
 
 
-def _make_node_id(node_type: str, name: str, user_id: Optional[str] = None) -> str:
+def _user_namespace(user_id: str) -> str:
+    """Return a stable, non-PII namespace for one graph owner."""
+    if not user_id or not user_id.strip():
+        raise ValueError("user_id is required for graph node identity")
+    digest = sha256(user_id.strip().encode("utf-8")).hexdigest()[:16]
+    return f"u_{digest}"
+
+
+def _make_node_id(node_type: str, name: str, user_id: str) -> str:
     """
     Derive a deterministic, stable ``node_id`` from the node type and name.
 
     Rules
     -----
-    * ``User`` nodes use the actual ``user_id`` so the root node is always
-      ``"user_{user_id}"``.
-    * All other node types normalise the name to lowercase, replace spaces and
-      hyphens with underscores, and strip non-alphanumeric characters, then
-      prefix with the lowercased type.
+    * Every ID begins with a SHA-256-derived user namespace. The raw user ID
+      is not exposed in node IDs.
+    * Identity is ``(owner, node_type, canonical_name)``. Consequently the
+      same emotion for two users has two different IDs.
+    * Names are case-folded, whitespace-normalised, and stripped of
+      non-word characters.
 
     Examples
     --------
     ::
 
-        _make_node_id("Emotion", "Anxiety")          → "emotion_anxiety"
-        _make_node_id("Trigger", "Work Deadlines")   → "trigger_work_deadlines"
-        _make_node_id("User", "User", user_id="u1")  → "user_u1"
-        _make_node_id("CopingTool", "8-Min Body Scan") → "copingtool_8_min_body_scan"
+        _make_node_id("Emotion", "Anxiety", "u1")
+            → "u_<hash>__emotion_anxiety"
+        _make_node_id("User", "User", "u1")
+            → "u_<hash>__user"
 
     Parameters
     ----------
@@ -198,23 +208,29 @@ def _make_node_id(node_type: str, name: str, user_id: Optional[str] = None) -> s
         The node label (e.g. ``"Emotion"``).
     name : str
         The canonical name value extracted from the conversation.
-    user_id : str, optional
-        Required (and only used) when ``node_type == "User"``.
+    user_id : str
+        Owning user. Required for every node type.
 
     Returns
     -------
     str
         A URL-safe, deterministic identifier string.
     """
-    if node_type == "User":
-        if not user_id:
-            raise ValueError("user_id is required for User node_id generation")
-        return f"user_{user_id}"
+    if not node_type or not node_type.strip():
+        raise ValueError("node_type is required for graph node identity")
 
-    slug = name.lower()
-    slug = slug.replace(" ", "_").replace("-", "_")
-    slug = re.sub(r"[^\w]", "", slug)  # strip remaining non-word chars
-    return f"{node_type.lower()}_{slug}"
+    namespace = _user_namespace(user_id)
+    if node_type == "User":
+        return f"{namespace}__user"
+
+    if not name or not name.strip():
+        raise ValueError("name is required for graph node identity")
+    slug = name.casefold().strip()
+    slug = re.sub(r"[\s-]+", "_", slug)
+    slug = re.sub(r"[^\w]", "", slug).strip("_")
+    if not slug:
+        raise ValueError("name must contain at least one word character")
+    return f"{namespace}__{node_type.casefold()}_{slug}"
 
 
 def generate_node_id(user_id: str, node_type: str, name: str) -> str:
@@ -291,6 +307,10 @@ async def upsert_node(
         If the MongoDB ``update_one`` call fails (network, write concern).
         The caller (``upsert_graph_tuples``) logs and skips these.
     """
+    expected_namespace = f"{_user_namespace(user_id)}__"
+    if not node_id.startswith(expected_namespace):
+        raise ValueError("node_id does not belong to the supplied user_id")
+
     now = datetime.now(timezone.utc)
     doc = {
         "user_id": user_id,  # Always set — user isolation key
@@ -374,6 +394,11 @@ async def upsert_relationship(
             f"Relationship type '{relation}' is not allowed. "
             f"Allowed: {sorted(_ALLOWED_RELATIONS)}"
         )
+    expected_namespace = f"{_user_namespace(user_id)}__"
+    if not from_node_id.startswith(expected_namespace):
+        raise ValueError("from_node_id does not belong to the supplied user_id")
+    if not to_node_id.startswith(expected_namespace):
+        raise ValueError("to_node_id does not belong to the supplied user_id")
 
     now = datetime.now(timezone.utc)
     doc = {
@@ -450,7 +475,7 @@ async def get_user_graph_context(
     """
     settings = get_settings()
     depth = depth if depth is not None else settings.GRAPH_TRAVERSAL_DEPTH
-    root_node_id = _make_node_id("User", "User", user_id=user_id)
+    root_node_id = _make_node_id("User", "User", user_id)
 
     # Pipeline:
     # 1. Find the root User node (scoped to user_id).
@@ -673,7 +698,7 @@ async def upsert_graph_tuples(
 
     # Ensure the User root node exists before upserting relationships.
     # This mirrors the ``MERGE (u:User {id: $user_id})`` in the former Neo4j path.
-    user_node_id = _make_node_id("User", "User", user_id=user_id)
+    user_node_id = _make_node_id("User", "User", user_id)
     await upsert_node(
         db,
         user_id=user_id,
@@ -693,12 +718,12 @@ async def upsert_graph_tuples(
             src_id = (
                 user_node_id
                 if src_type == "User"
-                else _make_node_id(src_type, t.source_node)
+                else _make_node_id(src_type, t.source_node, user_id)
             )
             tgt_id = (
                 user_node_id
                 if tgt_type == "User"
-                else _make_node_id(tgt_type, t.target_node)
+                else _make_node_id(tgt_type, t.target_node, user_id)
             )
 
             src_name = user_id if src_type == "User" else t.source_node

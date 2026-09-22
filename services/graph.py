@@ -59,10 +59,23 @@ from typing import Any, Dict, List, Optional, TypedDict
 from motor.motor_asyncio import AsyncIOMotorDatabase
 
 from config import get_settings
-from llm_provider import get_llm
-from prompts import SYSTEM_PROMPT
-from services.action_cards import parse_action_cards
+from llm_provider import get_llm, sanitize_messages_for_bedrock
+from prompts import (
+    dropped_session_hint,
+    format_system_prompt,
+    session_phase_instructions,
+)
+from services.action_cards import attach_apm_execution_metadata, parse_action_cards
+from services.apm import get_adaptive_memory_context
+from services.chat_history import (
+    decrypt_message_doc,
+    find_completed_user_turn,
+    load_session_messages,
+    persist_user_and_assistant,
+    persist_welcome_message,
+)
 from services.context import fetch_user_context
+from services.inner_council import deliberate as inner_council_deliberate
 
 logger = logging.getLogger(__name__)
 
@@ -107,6 +120,8 @@ class ChatState(TypedDict, total=False):
     session_id: str
     user_message: str
     db: Any          # AsyncIOMotorDatabase — runtime only
+    persist_user_message: bool
+    opening_turn: bool
 
     # ── Populated by fetch_context ────────────────────────────────────────────
     user_context: Dict[str, str]
@@ -165,28 +180,27 @@ async def fetch_context_node(state: ChatState) -> dict:
     settings = get_settings()
 
     # Fetch cross-app context (memory, moods, habits) from MongoDB
-    user_context = await fetch_user_context(db, user_id)
-
-    # Load recent conversation history for this session.
-    # Sort descending (newest first), limit to MAX_HISTORY_MESSAGES, then
-    # reverse so the list is oldest-first for the LLM prompt.
-    cursor = (
-        db["messages"]
-        .find(
-            {"session_id": session_id},
-            {"role": 1, "content": 1, "created_at": 1},  # Project only needed fields
-        )
-        .sort("created_at", -1)          # Newest first for efficient limit
-        .limit(settings.MAX_HISTORY_MESSAGES)
+    user_context = await fetch_user_context(
+        db,
+        user_id,
+        session_id=session_id,
+        user_message=state.get("user_message", ""),
+        opening_turn=bool(state.get("opening_turn")),
     )
-    history_docs = await cursor.to_list(length=settings.MAX_HISTORY_MESSAGES)
-    history_docs.reverse()  # Oldest first for chronological LLM context
+    user_context["adaptive_memory_context"] = await get_adaptive_memory_context(
+        db, user_id, state.get("user_message", "")
+    )
 
-    # Build a clean list of {role, content} dicts for the prompt builder
-    message_history = [
-        {"role": doc["role"], "content": doc["content"]}
-        for doc in history_docs
-    ]
+    # Load recent conversation history (stable chronological order via seq).
+    history_docs = await load_session_messages(
+        db,
+        user_id,
+        session_id,
+        limit=settings.MAX_HISTORY_MESSAGES,
+    )
+    message_history = [decrypt_message_doc(doc) for doc in history_docs]
+
+    user_context["dropped_session_context"] = dropped_session_hint(message_history)
 
     logger.info(
         "Context fetched for user=%s session=%s — %d history messages loaded",
@@ -287,31 +301,49 @@ async def generate_node(state: ChatState) -> dict:
 
     context = state.get("user_context", {})
 
-    # Build the system prompt by substituting all dynamic context sections.
-    # The SYSTEM_PROMPT template uses {graph_context}, {user_memory},
-    # {recent_moods}, and {active_habits} as named placeholders.
-    formatted_system = SYSTEM_PROMPT.format(
-        graph_context=state.get("graph_context", "No relational graph data available yet."),
-        user_memory=context.get("user_memory", "N/A"),
-        recent_moods=context.get("recent_moods", "N/A"),
-        active_habits=context.get("active_habits", "N/A"),
+    message_history = state.get("message_history", [])
+    council = inner_council_deliberate(
+        state.get("user_message", ""),
+        message_history,
+        opening_turn=bool(state.get("opening_turn")),
+    )
+    formatted_system = format_system_prompt(
+        graph_context=state.get("graph_context"),
+        user_memory=context.get("user_memory"),
+        recent_moods=context.get("recent_moods"),
+        active_habits=context.get("active_habits"),
+        dropped_session_context=context.get("dropped_session_context"),
+        user_profile=context.get("user_profile"),
+        academic_context=context.get("academic_context"),
+        attendance_context=context.get("attendance_context"),
+        assessment_context=context.get("assessment_context"),
+        last_session_context=context.get("last_session_context"),
+        adaptive_memory_context=context.get("adaptive_memory_context"),
+        session_phase=session_phase_instructions(
+            opening_turn=bool(state.get("opening_turn")),
+            message_history=message_history,
+        ),
+        response_stance=council.as_prompt_block(),
     )
 
     # Assemble the full message list for the LLM
-    messages = [SystemMessage(content=formatted_system)]
+    raw_messages = [SystemMessage(content=formatted_system)]
 
     # Re-hydrate conversation history as typed LangChain message objects
-    for msg in state.get("message_history", []):
+    for msg in message_history:
         if msg["role"] == "user":
-            messages.append(HumanMessage(content=msg["content"]))
+            raw_messages.append(HumanMessage(content=msg["content"]))
         elif msg["role"] == "assistant":
-            messages.append(AIMessage(content=msg["content"]))
+            raw_messages.append(AIMessage(content=msg["content"]))
         # Silently skip any messages with unexpected roles
 
     # Append the current user turn (the message this graph invocation is responding to)
-    messages.append(HumanMessage(content=state["user_message"]))
+    current_user_message = state.get("user_message", "")
+    if current_user_message:
+        raw_messages.append(HumanMessage(content=current_user_message))
+    messages = sanitize_messages_for_bedrock(raw_messages)
 
-    # Invoke the LLM chain; Gemini → OpenAI failover is transparent here
+    # Invoke the LLM chain
     llm = get_llm()
     response = await llm.ainvoke(messages)
 
@@ -365,37 +397,31 @@ async def format_output_node(state: ChatState) -> dict:
     db: AsyncIOMotorDatabase = state["db"]
     session_id = state["session_id"]
     user_id = state["user_id"]
-    # Single timestamp for both message inserts keeps them consistent
-    now = datetime.now(timezone.utc)
 
     # Step 1: Strip action card blocks from the raw LLM output
-    # ``parse_action_cards`` handles malformed blocks gracefully (logs + skips)
     clean_reply, action_cards = parse_action_cards(state["raw_llm_output"])
+    attach_apm_execution_metadata(action_cards, user_id)
 
-    # Step 2: Persist the user message to MongoDB
-    await db["messages"].insert_one(
-        {
-            "session_id": session_id,
-            "user_id": user_id,
-            "role": "user",
-            "content": state["user_message"],
-            "created_at": now,
-        }
-    )
+    # Step 2: Persist history as separate role-tagged records (idempotent).
+    if state.get("opening_turn") and not state.get("persist_user_message", True):
+        await persist_welcome_message(
+            db,
+            user_id=user_id,
+            session_id=session_id,
+            content=clean_reply,
+        )
+    else:
+        await persist_user_and_assistant(
+            db,
+            user_id=user_id,
+            session_id=session_id,
+            user_message=state["user_message"],
+            assistant_reply=clean_reply,
+        )
 
-    # Step 3: Persist the assistant reply to MongoDB
-    await db["messages"].insert_one(
-        {
-            "session_id": session_id,
-            "user_id": user_id,
-            "role": "assistant",
-            "content": clean_reply,
-            "created_at": now,
-        }
-    )
-
-    # Step 4: Log any action cards emitted in this turn for analytics/audit
+    # Step 3: Log any action cards emitted in this turn for analytics/audit
     if action_cards:
+        now = datetime.now(timezone.utc)
         card_docs = [
             {
                 "session_id": session_id,
@@ -414,7 +440,6 @@ async def format_output_node(state: ChatState) -> dict:
 
     return {
         "reply": clean_reply,
-        # Serialise to plain dicts so the response is JSON-serialisable
         "action_cards": [card.model_dump() for card in action_cards],
     }
 
@@ -494,6 +519,8 @@ async def run_chat_graph(
     session_id: str,
     user_message: str,
     db: AsyncIOMotorDatabase,
+    persist_user_message: bool = True,
+    opening_turn: bool = False,
 ) -> Dict[str, Any]:
     """
     Execute the full LangGraph conversational pipeline for one turn.
@@ -543,12 +570,29 @@ async def run_chat_graph(
         )
         print(result["reply"])  # The AI companion's response
     """
+    # Idempotent retry: if this exact user text was already answered at the
+    # session tip, return the stored assistant reply without regenerating.
+    if persist_user_message and not opening_turn:
+        existing = await find_completed_user_turn(
+            db, user_id, session_id, user_message
+        )
+        if existing:
+            from services.security import decrypt_payload
+
+            return {
+                "session_id": session_id,
+                "reply": decrypt_payload(existing.get("content", "")),
+                "action_cards": [],
+            }
+
     # Build the initial state dict; nodes will add keys as they execute
     initial_state: ChatState = {
         "user_id": user_id,
         "session_id": session_id,
         "user_message": user_message,
         "db": db,
+        "persist_user_message": persist_user_message,
+        "opening_turn": opening_turn,
     }
 
     # Get (or compile) the cached graph and run it asynchronously
