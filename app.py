@@ -48,8 +48,10 @@ from schemas import (
     APMFeedbackRequest,
     LoginRequest,
     LoginResponse,
+    PatternFeedbackRequest,
     PersonalizationConsentRequest,
     SessionResumeResponse,
+    SignupRequest,
     WelcomeRequest,
 )
 from services.extraction import run_background_extraction
@@ -60,6 +62,7 @@ from services.apm import delete_adaptive_memory, record_intervention_feedback
 from services.users import (
     authenticate,
     issue_access_token,
+    register_user,
     set_personalization_consent,
     verify_access_token,
 )
@@ -127,6 +130,36 @@ async def login(payload: LoginRequest, db: AsyncIOMotorDatabase = Depends(get_db
     )
 
 
+@app.post("/auth/signup", response_model=LoginResponse, status_code=201)
+async def signup(payload: SignupRequest, db: AsyncIOMotorDatabase = Depends(get_db)):
+    """Create a new account. Returns the same session payload as login."""
+    try:
+        user = await register_user(
+            db,
+            email=payload.email,
+            password=payload.password,
+            name=payload.name,
+        )
+    except ValueError as exc:
+        detail = str(exc)
+        status = 409 if "already exists" in detail.lower() else 400
+        raise HTTPException(status_code=status, detail=detail) from exc
+
+    return LoginResponse(
+        user_id=user["user_id"],
+        access_token=issue_access_token(user["user_id"]),
+        email=user.get("email"),
+        name=user.get("name"),
+        student_class=user.get("class"),
+        school=user.get("school"),
+        preferred_language=user.get("preferred_language"),
+        age=user.get("age"),
+        chief_concern=user.get("chief_concern"),
+        board=user.get("board"),
+        personalization_consent=user.get("personalization_consent", False),
+    )
+
+
 @app.post("/api/memory/consent")
 async def update_memory_consent(
     payload: PersonalizationConsentRequest,
@@ -162,13 +195,43 @@ async def intervention_feedback(
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
+@app.post("/api/patterns/feedback")
+async def pattern_feedback(
+    payload: PatternFeedbackRequest,
+    user_id: str = Depends(authenticated_user_id),
+    db: AsyncIOMotorDatabase = Depends(get_db),
+):
+    """Explicit user confirmation/disagreement on a detected pattern."""
+    from services.patterns import record_pattern_feedback
+
+    try:
+        return await record_pattern_feedback(
+            db,
+            user_id=user_id,
+            pattern_id=payload.pattern_id,
+            event_type=payload.event_type,
+            note=payload.note,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+
 @app.delete("/api/memory")
 async def delete_memory(
     user_id: str = Depends(authenticated_user_id),
     db: AsyncIOMotorDatabase = Depends(get_db),
 ):
+    """
+    Revoke personalized memory material.
+
+    Deletes APM collections and longitudinal user_patterns / pattern_evidence
+    for the authenticated user. Chat history and Graph RAG are retained.
+    """
     deleted = await delete_adaptive_memory(db, user_id)
-    return {"deleted": deleted}
+    from services.patterns.store import delete_user_patterns
+
+    pattern_deleted = await delete_user_patterns(db, user_id)
+    return {"deleted": deleted, "patterns_deleted": pattern_deleted}
 
 
 @app.post("/chat/welcome", response_model=ChatMessageResponse)

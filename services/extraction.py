@@ -35,13 +35,20 @@ background extraction failure is transparent to the user.
 import json
 import logging
 from datetime import datetime, timezone
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 from motor.motor_asyncio import AsyncIOMotorDatabase
 
 from llm_provider import get_llm
 from prompts import APM_EXTRACTION_PROMPT, EXTRACTION_PROMPT, GRAPH_EXTRACTION_PROMPT
-from schemas import APMExtraction, ExtractedGraphData, GraphTuple, SessionExtraction
+from schemas import (
+    APMExtraction,
+    ExtractedGraphData,
+    GraphNodeLabel,
+    GraphRelationType,
+    GraphTuple,
+    SessionExtraction,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -135,6 +142,28 @@ async def run_background_extraction(
     except Exception:
         logger.exception(
             "Adaptive memory extraction failed for user=%s session=%s",
+            user_id,
+            session_id,
+        )
+
+    # ── Task 4: Longitudinal pattern detection (consent + crisis gated) ──────
+    try:
+        from services.patterns import run_pattern_detection
+
+        crisis = bool(
+            extraction is not None and extraction.crisis_signal_detected
+        )
+        await run_pattern_detection(
+            db,
+            user_id,
+            session_id=session_id,
+            message=message,
+            reply=reply,
+            crisis=crisis,
+        )
+    except Exception:
+        logger.exception(
+            "Pattern detection failed for user=%s session=%s",
             user_id,
             session_id,
         )
@@ -326,6 +355,120 @@ async def _handle_crisis_signal(
 # ── Graph Tuple Extraction Helpers ────────────────────────────────────────────
 
 
+# Map common LLM improvisations onto the closed relation vocabulary.
+_RELATION_ALIASES: Dict[str, GraphRelationType] = {
+    "ASKED": GraphRelationType.ASSOCIATED_WITH,
+    "ASKS": GraphRelationType.ASSOCIATED_WITH,
+    "SAID": GraphRelationType.ASSOCIATED_WITH,
+    "MENTIONED": GraphRelationType.ASSOCIATED_WITH,
+    "TALKED_ABOUT": GraphRelationType.ASSOCIATED_WITH,
+    "RELATED_TO": GraphRelationType.ASSOCIATED_WITH,
+    "RELATES_TO": GraphRelationType.ASSOCIATED_WITH,
+    "FEELS": GraphRelationType.EXPERIENCES,
+    "FELT": GraphRelationType.EXPERIENCES,
+    "HAS_EMOTION": GraphRelationType.EXPERIENCES,
+    "CAUSED_BY": GraphRelationType.TRIGGERED_BY,
+    "TRIGGERED": GraphRelationType.TRIGGERED_BY,
+    "USED": GraphRelationType.TRIED_TOOL,
+    "TRIED": GraphRelationType.TRIED_TOOL,
+    "HELPED": GraphRelationType.HELPED_WITH,
+    "THEN": GraphRelationType.FOLLOWED_BY,
+    "NEXT": GraphRelationType.FOLLOWED_BY,
+    "ATTENDED": GraphRelationType.PARTICIPATED_IN,
+    "JOINED": GraphRelationType.PARTICIPATED_IN,
+}
+
+_LABEL_ALIASES: Dict[str, GraphNodeLabel] = {
+    "PERSON": GraphNodeLabel.ENTITY,
+    "PEOPLE": GraphNodeLabel.ENTITY,
+    "PLACE": GraphNodeLabel.ENTITY,
+    "THING": GraphNodeLabel.ENTITY,
+    "FEELING": GraphNodeLabel.EMOTION,
+    "MOOD": GraphNodeLabel.EMOTION,
+    "TOOL": GraphNodeLabel.COPING_TOOL,
+    "COPING": GraphNodeLabel.COPING_TOOL,
+    "ACTIVITY": GraphNodeLabel.EVENT,
+}
+
+
+def _coerce_relation(raw: Any) -> Optional[GraphRelationType]:
+    if raw is None:
+        return None
+    text = str(raw).strip().upper().replace(" ", "_").replace("-", "_")
+    try:
+        return GraphRelationType(text)
+    except ValueError:
+        return _RELATION_ALIASES.get(text)
+
+
+def _coerce_label(raw: Any) -> Optional[GraphNodeLabel]:
+    if raw is None:
+        return None
+    text = str(raw).strip()
+    # Preserve canonical casing for enum members
+    for label in GraphNodeLabel:
+        if text.lower() == label.value.lower():
+            return label
+    return _LABEL_ALIASES.get(text.upper().replace(" ", "_"))
+
+
+def sanitize_graph_payload(payload: Dict[str, Any]) -> ExtractedGraphData:
+    """
+    Coerce / drop invalid LLM graph tuples instead of failing the whole turn.
+
+    Unknown relationship types like ``ASKED`` are remapped when possible;
+    otherwise the tuple is skipped. Valid tuples are kept.
+    """
+    raw_tuples = payload.get("tuples") if isinstance(payload, dict) else None
+    if not isinstance(raw_tuples, list):
+        return ExtractedGraphData(tuples=[])
+
+    cleaned: List[GraphTuple] = []
+    skipped = 0
+    for item in raw_tuples:
+        if not isinstance(item, dict):
+            skipped += 1
+            continue
+        relation = _coerce_relation(item.get("relationship"))
+        source_label = _coerce_label(item.get("source_label"))
+        target_label = _coerce_label(item.get("target_label"))
+        if not relation or not source_label or not target_label:
+            skipped += 1
+            logger.debug(
+                "Skipping graph tuple with unsupported fields: %s",
+                {
+                    "relationship": item.get("relationship"),
+                    "source_label": item.get("source_label"),
+                    "target_label": item.get("target_label"),
+                },
+            )
+            continue
+        try:
+            cleaned.append(
+                GraphTuple(
+                    source_node=str(item.get("source_node") or "").strip() or "User",
+                    source_label=source_label,
+                    relationship=relation,
+                    target_node=str(item.get("target_node") or "").strip() or "Unknown",
+                    target_label=target_label,
+                    properties=item.get("properties")
+                    if isinstance(item.get("properties"), dict)
+                    else {},
+                )
+            )
+        except Exception:
+            skipped += 1
+            logger.debug("Skipping malformed graph tuple: %s", item, exc_info=True)
+
+    if skipped:
+        logger.info(
+            "Graph extraction sanitized — kept=%d skipped=%d",
+            len(cleaned),
+            skipped,
+        )
+    return ExtractedGraphData(tuples=cleaned)
+
+
 async def _extract_graph_tuples(
     user_message: str, ai_reply: str
 ) -> List[GraphTuple]:
@@ -353,8 +496,6 @@ async def _extract_graph_tuples(
     ------
     json.JSONDecodeError
         If the LLM output is not valid JSON after stripping fencing.
-    pydantic.ValidationError
-        If the extracted JSON does not conform to ``ExtractedGraphData``.
     Exception
         Any LLM API error propagates to the caller.
     """
@@ -382,8 +523,8 @@ async def _extract_graph_tuples(
     cleaned = _strip_markdown_fencing(raw_text)
     payload: Dict[str, Any] = json.loads(cleaned)
 
-    # Validate the entire payload against the ExtractedGraphData container schema
-    graph_data = ExtractedGraphData(**payload)
+    # Coerce / drop invalid enums (e.g. relationship=ASKED) instead of failing
+    graph_data = sanitize_graph_payload(payload)
 
     logger.info(
         "Graph tuple extraction complete — %d tuples extracted.",

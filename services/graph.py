@@ -319,6 +319,7 @@ async def generate_node(state: ChatState) -> dict:
         assessment_context=context.get("assessment_context"),
         last_session_context=context.get("last_session_context"),
         adaptive_memory_context=context.get("adaptive_memory_context"),
+        pattern_context=context.get("pattern_context"),
         session_phase=session_phase_instructions(
             opening_turn=bool(state.get("opening_turn")),
             message_history=message_history,

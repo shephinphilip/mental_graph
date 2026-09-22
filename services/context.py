@@ -105,6 +105,14 @@ async def fetch_user_context(
     if marks_block:
         profile_fields["academic_context"] = marks_block
 
+    pattern_context = "No longitudinal user patterns available for this turn."
+    try:
+        from services.patterns import get_pattern_context
+
+        pattern_context = await get_pattern_context(db, user_id, user_message)
+    except Exception:
+        logger.exception("Pattern context fetch failed for user=%s", user_id)
+
     logger.debug(
         "Context aggregated for user=%s — memory=%d chars, moods=%d chars, habits=%d chars",
         user_id,
@@ -118,6 +126,7 @@ async def fetch_user_context(
         "recent_moods": recent_moods,
         "active_habits": active_habits,
         "last_session_context": last_session,
+        "pattern_context": pattern_context,
         **profile_fields,
     }
 

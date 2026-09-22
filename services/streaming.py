@@ -254,6 +254,7 @@ async def stream_chat_graph(
         assessment_context=user_context.get("assessment_context"),
         last_session_context=user_context.get("last_session_context"),
         adaptive_memory_context=user_context.get("adaptive_memory_context"),
+        pattern_context=user_context.get("pattern_context"),
         session_phase=session_phase_instructions(
             opening_turn=False,
             message_history=history_for_hint,

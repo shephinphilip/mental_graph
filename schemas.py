@@ -153,6 +153,12 @@ class LoginRequest(BaseModel):
     password: str
 
 
+class SignupRequest(BaseModel):
+    email: str
+    password: str
+    name: Optional[str] = None
+
+
 class LoginResponse(BaseModel):
     user_id: str
     access_token: str
@@ -495,3 +501,54 @@ class StreamChunk(BaseModel):
 
     event: str  # "token" | "action_card" | "crisis_alert" | "error" | "done"
     data: Any
+
+
+# ════════════════════════════════════════════════════════════════════════════
+# Section 6 — Longitudinal User Pattern Detection
+# ════════════════════════════════════════════════════════════════════════════
+
+
+class PatternType(str, Enum):
+    TEMPORAL = "TEMPORAL"
+    BEHAVIORAL = "BEHAVIORAL"
+    CROSS_DOMAIN = "CROSS_DOMAIN"
+    ACADEMIC = "ACADEMIC"
+    INTERVENTION_RESPONSE = "INTERVENTION_RESPONSE"
+    RECURRENCE = "RECURRENCE"
+    CHANGE_POINT = "CHANGE_POINT"
+
+
+class PatternStatus(str, Enum):
+    OBSERVATION = "OBSERVATION"
+    EMERGING = "EMERGING"
+    ESTABLISHED = "ESTABLISHED"
+    INACTIVE = "INACTIVE"
+
+
+class PatternDomain(str, Enum):
+    SLEEP = "sleep"
+    JOURNALING = "journaling"
+    TASKS = "tasks"
+    MEDITATION = "meditation"
+    LANGUAGE = "language"
+    ACADEMIC = "academic"
+    ATTENDANCE = "attendance"
+    CONVERSATION = "conversation"
+    MOOD = "mood"
+    HABITS = "habits"
+    GRAPH = "graph"
+    APM = "apm"
+
+
+class PatternFeedbackEvent(str, Enum):
+    CONFIRM = "CONFIRM"
+    DISAGREE = "DISAGREE"
+    NOT_RELATED = "NOT_RELATED"
+    HELPFUL = "HELPFUL"
+    NOT_HELPFUL = "NOT_HELPFUL"
+
+
+class PatternFeedbackRequest(BaseModel):
+    pattern_id: str
+    event_type: PatternFeedbackEvent
+    note: Optional[str] = None

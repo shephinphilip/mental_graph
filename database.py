@@ -95,6 +95,11 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         await ensure_apm_indexes(app.state.db)
         from services.chat_history import ensure_message_indexes
         await ensure_message_indexes(app.state.db)
+        from services.patterns import ensure_pattern_indexes
+        await ensure_pattern_indexes(app.state.db)
+        # Unique email/user_id for signup + login
+        await app.state.db["users"].create_index("email", unique=True)
+        await app.state.db["users"].create_index("user_id", unique=True)
     except Exception:
         logger.warning(
             "Could not create MongoDB memory indexes — memory features may be slower. "

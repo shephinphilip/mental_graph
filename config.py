@@ -68,6 +68,20 @@ class Settings(BaseSettings):
     APM_REINFORCEMENT_DECAY_PER_DAY: float = 0.01
     APM_FAILURE_PENALTY: float = 0.12
 
+    # ── Longitudinal Pattern Detection Engine ────────────────────────────────
+    # Evidence thresholds (documented — tune via env without code changes)
+    PATTERN_EMERGING_MIN_EVIDENCE: int = 3
+    PATTERN_ESTABLISHED_MIN_EVIDENCE: int = 5
+    PATTERN_RETRIEVAL_MAX: int = 3
+    PATTERN_RETRIEVAL_MIN_CONFIDENCE: float = 0.4
+    PATTERN_DECAY_PER_DAY: float = 0.01
+    PATTERN_INACTIVE_DAYS: int = 45
+    PATTERN_BASELINE_WINDOW_DAYS: int = 30
+    PATTERN_LOOKBACK_DAYS: int = 60
+    PATTERN_FEEDBACK_CONFIRM_BOOST: float = 0.08
+    PATTERN_FEEDBACK_DISAGREE_PENALTY: float = 0.15
+    PATTERN_CONTRADICTION_PENALTY: float = 0.10
+
     # ── Crisis Helplines (India Default) ─────────────────────────────────────
     CRISIS_HELPLINE_TELE_MANAS: str = "14416"
     CRISIS_HELPLINE_AASRA: str = "+91-9820466726"

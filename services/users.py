@@ -13,11 +13,13 @@ import hmac
 import json
 import logging
 import time
+import uuid
 from datetime import datetime, timezone
 from typing import Any, Dict, Optional
 
 from bson import ObjectId
 from motor.motor_asyncio import AsyncIOMotorDatabase
+from pymongo.errors import DuplicateKeyError
 
 from config import get_settings
 
@@ -131,6 +133,57 @@ async def is_active(db: AsyncIOMotorDatabase, identifier: str) -> bool:
     if not doc:
         return False
     return bool(doc.get("isActive", True))
+
+
+async def register_user(
+    db: AsyncIOMotorDatabase,
+    *,
+    email: str,
+    password: str,
+    name: Optional[str] = None,
+) -> Dict[str, Any]:
+    """
+    Create a new active user with a hashed password.
+
+    Raises
+    ------
+    ValueError
+        On invalid email/password or when the email is already registered.
+    """
+    cleaned_email = (email or "").strip().lower()
+    if not cleaned_email or "@" not in cleaned_email or "." not in cleaned_email.split("@")[-1]:
+        raise ValueError("Enter a valid email address")
+    if not password or len(password) < 8:
+        raise ValueError("Password must be at least 8 characters")
+
+    existing = await get_by_identifier(db, cleaned_email, include_password=False)
+    if existing:
+        raise ValueError("An account with this email already exists")
+
+    now = datetime.now(timezone.utc)
+    display_name = (name or "").strip() or cleaned_email.split("@")[0].replace(".", " ").title()
+    user_id = f"usr_{uuid.uuid4().hex[:12]}"
+    doc = {
+        "user_id": user_id,
+        "email": cleaned_email,
+        "name": display_name,
+        "password": hash_password(password),
+        "isActive": True,
+        "roles": ["student"],
+        "changedPass": False,
+        "preferred_language": "ENGLISH",
+        "preferred_language_updated_at": now,
+        "personalization_consent": False,
+        "created_at": now,
+        "updated_at": now,
+    }
+    try:
+        await db["users"].insert_one(doc)
+    except DuplicateKeyError as exc:
+        raise ValueError("An account with this email already exists") from exc
+
+    logger.info("User registered — email=%s user_id=%s", cleaned_email, user_id)
+    return public_user_view(doc)
 
 
 async def authenticate(

@@ -58,10 +58,14 @@ idea, not a multi-paragraph lecture. Brevity can be containment.
 
 4. REMEMBER AND USE CONTEXT
    Conversation history is in the message list.  Graph memory, mood logs, \
-habits, academic/attendance/assessment summaries, and dropped-session \
-notes are below.  Bring details forward naturally — sleep last week, an \
-exam, a parent mentioned twice — never as a database readout.  The user \
-should feel they are returning to the same entity, not a blank slate.
+habits, academic/attendance/assessment summaries, longitudinal patterns, \
+and dropped-session notes are below.  Bring details forward naturally — \
+sleep last week, an exam, a parent mentioned twice — never as a database \
+readout.  Patterns are tentative personal co-occurrences with confidence \
+and provenance — never causation, never diagnoses.  Mention at most one \
+relevant pattern, only when it fits, and invite the user to confirm or \
+disagree.  The user should feel they are returning to the same entity, \
+not a blank slate.
 
 5. CLARITY BEFORE CATEGORY
    Never assume exam stress, depression, bullying, breakup, or self-harm \
@@ -227,6 +231,9 @@ Relational graph:
 Adaptive psychological memory:
 {adaptive_memory_context}
 
+Longitudinal user patterns (tentative co-occurrences — not causation or diagnosis):
+{pattern_context}
+
 Memory & takeaways:
 {user_memory}
 
@@ -253,6 +260,7 @@ Assessment summaries (e.g. GDS trends):
 SYSTEM_PROMPT_DEFAULTS = {
     "graph_context": "No relational graph data available yet.",
     "adaptive_memory_context": "No adaptive psychological memory available.",
+    "pattern_context": "No longitudinal user patterns available for this turn.",
     "user_memory": "No prior session history available.",
     "recent_moods": "No mood logs recorded recently.",
     "active_habits": "No active habits tracked.",
@@ -454,6 +462,10 @@ Each tuple has these fields:
 }}
 
 Guidelines:
+• relationship MUST be exactly one of: EXPERIENCES, TRIGGERED_BY, \
+ASSOCIATED_WITH, TRIED_TOOL, HELPED_WITH, FOLLOWED_BY, PARTICIPATED_IN. \
+Never invent verbs like ASKED, SAID, MENTIONED, or FEELS — use \
+ASSOCIATED_WITH or EXPERIENCES instead.
 • Use the literal string "User" as the source_node when the fact is \
 about the user themselves.
 • Emotion states should be single words or short phrases: "anxiety", \
