@@ -97,6 +97,19 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         await ensure_message_indexes(app.state.db)
         from services.patterns import ensure_pattern_indexes
         await ensure_pattern_indexes(app.state.db)
+        from services.meditation.service import ensure_meditation_indexes
+        await ensure_meditation_indexes(app.state.db)
+        from sleep.indexes import ensure_sleep_indexes
+        await ensure_sleep_indexes(app.state.db)
+        from journaling.indexes import ensure_journal_indexes
+        await ensure_journal_indexes(app.state.db)
+        from tasks.indexes import ensure_task_indexes
+        await ensure_task_indexes(app.state.db)
+        await app.state.db["session_reports"].create_index(
+            [("user_id", 1), ("session_id", 1)],
+            unique=True,
+            name="uniq_session_report",
+        )
         # Unique email/user_id for signup + login
         await app.state.db["users"].create_index("email", unique=True)
         await app.state.db["users"].create_index("user_id", unique=True)

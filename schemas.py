@@ -185,6 +185,11 @@ class PersonalizationConsentRequest(BaseModel):
     enabled: bool
 
 
+class LanguagePreferenceRequest(BaseModel):
+    language: str
+    user_id: Optional[str] = None
+
+
 class APMFeedbackRequest(BaseModel):
     edge_id: str
     intervention_id: str
@@ -566,3 +571,68 @@ class PatternFeedbackRequest(BaseModel):
     pattern_id: str
     event_type: PatternFeedbackEvent
     note: Optional[str] = None
+
+
+class MeditationStartRequest(BaseModel):
+    meditation_id: str
+    execution_nonce: str
+    session_id: Optional[str] = None
+    reason: Optional[str] = None
+
+
+class MeditationCompleteRequest(BaseModel):
+    execution_id: str
+    execution_nonce: str
+    listen_duration_seconds: int = 0
+
+
+class MeditationFeedbackRequest(BaseModel):
+    execution_id: str
+    execution_nonce: str
+    feedback: str
+
+
+class MeditationPreviewRequest(BaseModel):
+    message: Optional[str] = None
+
+
+class SessionReportRequest(BaseModel):
+    session_id: str
+
+
+class TaskCompleteRequest(BaseModel):
+    task_id: str
+    user_id: Optional[str] = None
+
+
+class TaskCustomRequest(BaseModel):
+    title: str
+    description: str = ""
+    user_id: Optional[str] = None
+
+
+class TaskCustomPatch(BaseModel):
+    title: Optional[str] = None
+    description: Optional[str] = None
+    is_deleted: Optional[bool] = None
+
+
+class JournalEntryRequest(BaseModel):
+    """New journal entry. user_id in the body is not authorization."""
+
+    title: str
+    content: str
+    mood: str
+    tags: Optional[List[str]] = None
+    time_spent: int = 0
+    user_id: Optional[str] = None
+
+
+class SleepLogRequest(BaseModel):
+    """Self-reported night. user_id is ignored for authorization."""
+
+    bedtime: str
+    wake_up_time: str
+    date: str
+    total_duration_minutes: Optional[int] = None
+    user_id: Optional[str] = None

@@ -48,7 +48,18 @@ from schemas import (
     APMFeedbackRequest,
     LoginRequest,
     LoginResponse,
+    MeditationCompleteRequest,
+    MeditationFeedbackRequest,
+    MeditationPreviewRequest,
+    MeditationStartRequest,
     PatternFeedbackRequest,
+    SessionReportRequest,
+    JournalEntryRequest,
+    TaskCompleteRequest,
+    TaskCustomPatch,
+    TaskCustomRequest,
+    SleepLogRequest,
+    LanguagePreferenceRequest,
     PersonalizationConsentRequest,
     SessionResumeResponse,
     SignupRequest,
@@ -64,6 +75,7 @@ from services.users import (
     issue_access_token,
     register_user,
     set_personalization_consent,
+    set_preferred_language,
     verify_access_token,
 )
 from prompts import WELCOME_USER_CUE
@@ -160,6 +172,30 @@ async def signup(payload: SignupRequest, db: AsyncIOMotorDatabase = Depends(get_
     )
 
 
+@app.post("/api/language")
+async def update_preferred_language(
+    payload: LanguagePreferenceRequest,
+    user_id: str = Depends(authenticated_user_id),
+    db: AsyncIOMotorDatabase = Depends(get_db),
+):
+    """Store the signed-in user's language. The body user id is not the target."""
+    from services.language_preferences import language_write_target
+
+    try:
+        language_write_target(user_id, payload.user_id)
+        updated = await set_preferred_language(db, user_id, payload.language)
+    except PermissionError as exc:
+        raise HTTPException(status_code=403, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    if not updated:
+        raise HTTPException(status_code=404, detail="Active user not found")
+    return {
+        "preferred_language": updated.get("preferred_language"),
+        "preferred_language_updated_at": updated.get("preferred_language_updated_at"),
+    }
+
+
 @app.post("/api/memory/consent")
 async def update_memory_consent(
     payload: PersonalizationConsentRequest,
@@ -231,7 +267,13 @@ async def delete_memory(
     from services.patterns.store import delete_user_patterns
 
     pattern_deleted = await delete_user_patterns(db, user_id)
-    return {"deleted": deleted, "patterns_deleted": pattern_deleted}
+    meditation_deleted = await db["meditation_executions"].delete_many({"user_id": user_id})
+    await db["meditation_offers"].delete_many({"user_id": user_id})
+    return {
+        "deleted": deleted,
+        "patterns_deleted": pattern_deleted,
+        "meditation_executions_deleted": meditation_deleted.deleted_count,
+    }
 
 
 @app.post("/chat/welcome", response_model=ChatMessageResponse)
@@ -413,6 +455,370 @@ async def resume_session(
             exc,
         )
         raise HTTPException(status_code=500, detail=str(exc))
+
+
+def _public_sleep(doc: dict) -> dict:
+    return {
+        "user_id": doc.get("user_id"),
+        "bedtime": doc.get("bedtime"),
+        "wake_up_time": doc.get("wake_up_time"),
+        "total_duration_minutes": doc.get("total_duration_minutes"),
+        "date": doc.get("date"),
+        "created_at": doc.get("created_at"),
+    }
+
+
+def _public_journal(doc: dict, *, preview: bool = False) -> dict:
+    from config import get_settings
+    from journaling.service import public_entry
+
+    limit = get_settings().JOURNAL_PREVIEW_CHARS if preview else None
+    payload = public_entry(doc, preview_chars=limit)
+    if doc.get("duplicate"):
+        payload["duplicate"] = True
+    return payload
+
+
+@app.post("/journal/entry")
+async def post_journal_entry(
+    payload: JournalEntryRequest,
+    user_id: str = Depends(authenticated_user_id),
+    db: AsyncIOMotorDatabase = Depends(get_db),
+):
+    from journaling.service import create_journal_entry
+
+    try:
+        doc = await create_journal_entry(
+            db,
+            user_id,
+            title=payload.title,
+            content=payload.content,
+            mood=payload.mood,
+            tags=payload.tags,
+            time_spent=payload.time_spent,
+            claimed_user_id=payload.user_id,
+        )
+    except PermissionError as exc:
+        raise HTTPException(status_code=403, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return _public_journal(doc, preview=False)
+
+
+@app.get("/journal/recent-entries")
+async def journal_recent(
+    user_id: str = Depends(authenticated_user_id),
+    db: AsyncIOMotorDatabase = Depends(get_db),
+):
+    from journaling.service import recent_entries
+
+    rows = await recent_entries(db, user_id)
+    return {"entries": [_public_journal(row, preview=True) for row in rows]}
+
+
+@app.get("/journal/entry/{entry_id}")
+async def journal_entry(
+    entry_id: str,
+    user_id: str = Depends(authenticated_user_id),
+    db: AsyncIOMotorDatabase = Depends(get_db),
+):
+    from journaling.service import get_entry
+
+    doc = await get_entry(db, user_id, entry_id)
+    if not doc:
+        raise HTTPException(status_code=404, detail="Journal entry not found")
+    return _public_journal(doc, preview=False)
+
+
+@app.get("/journal/past-reflections")
+async def journal_past(
+    user_id: str = Depends(authenticated_user_id),
+    db: AsyncIOMotorDatabase = Depends(get_db),
+):
+    from journaling.service import past_reflections
+
+    rows = await past_reflections(db, user_id)
+    return {"entries": [_public_journal(row, preview=True) for row in rows]}
+
+
+@app.get("/journal/calendar-data")
+async def journal_calendar(
+    user_id: str = Depends(authenticated_user_id),
+    db: AsyncIOMotorDatabase = Depends(get_db),
+):
+    from journaling.service import calendar_data
+
+    return {"days": await calendar_data(db, user_id)}
+
+
+@app.get("/journal/favorites")
+async def journal_favorites(
+    user_id: str = Depends(authenticated_user_id),
+    db: AsyncIOMotorDatabase = Depends(get_db),
+):
+    from journaling.service import favorites
+
+    rows = await favorites(db, user_id)
+    return {"entries": [_public_journal(row, preview=True) for row in rows]}
+
+
+@app.get("/journal/stats")
+async def journal_stats(
+    user_id: str = Depends(authenticated_user_id),
+    db: AsyncIOMotorDatabase = Depends(get_db),
+):
+    from journaling.service import stats
+
+    return await stats(db, user_id)
+
+
+@app.get("/journal/monthly-mindfulness")
+async def journal_month(
+    user_id: str = Depends(authenticated_user_id),
+    db: AsyncIOMotorDatabase = Depends(get_db),
+):
+    from journaling.service import monthly_mindfulness
+
+    return await monthly_mindfulness(db, user_id)
+
+
+@app.post("/api/sleep")
+async def create_sleep(
+    payload: SleepLogRequest,
+    user_id: str = Depends(authenticated_user_id),
+    db: AsyncIOMotorDatabase = Depends(get_db),
+):
+    """Store one night for the authenticated user. A body user_id cannot retarget it."""
+    from sleep.writer import create_sleep_log
+
+    try:
+        doc = await create_sleep_log(
+            db,
+            user_id,
+            bedtime=payload.bedtime,
+            wake_up_time=payload.wake_up_time,
+            date=payload.date,
+            total_duration_minutes=payload.total_duration_minutes,
+            claimed_user_id=payload.user_id,
+        )
+    except PermissionError as exc:
+        raise HTTPException(status_code=403, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return _public_sleep(doc)
+
+
+@app.get("/api/sleep/recent")
+async def recent_sleep(
+    user_id: str = Depends(authenticated_user_id),
+    db: AsyncIOMotorDatabase = Depends(get_db),
+):
+    from sleep.reader import get_recent_sleep
+
+    doc = await get_recent_sleep(db, user_id)
+    return {"sleep": _public_sleep(doc) if doc else None}
+
+
+@app.get("/api/sleep/history")
+async def sleep_history(
+    days: int = 7,
+    user_id: str = Depends(authenticated_user_id),
+    db: AsyncIOMotorDatabase = Depends(get_db),
+):
+    from sleep.reader import get_sleep_history
+
+    docs = await get_sleep_history(db, user_id, days=days)
+    return {"sleep": [_public_sleep(doc) for doc in docs]}
+
+
+def _task_http(exc: Exception) -> HTTPException:
+    if isinstance(exc, PermissionError):
+        return HTTPException(status_code=403, detail=str(exc))
+    if isinstance(exc, LookupError):
+        return HTTPException(status_code=404, detail=str(exc))
+    if isinstance(exc, ValueError):
+        return HTTPException(status_code=400, detail=str(exc))
+    return HTTPException(status_code=500, detail="Task request failed")
+
+
+@app.get("/api/report_card/tasks/{claimed_user_id}")
+async def report_card_tasks(
+    claimed_user_id: str,
+    user_id: str = Depends(authenticated_user_id),
+    db: AsyncIOMotorDatabase = Depends(get_db),
+):
+    from tasks.store import list_today
+
+    try:
+        return await list_today(db, user_id, claimed_user_id=claimed_user_id)
+    except PermissionError as exc:
+        raise _task_http(exc) from exc
+
+
+@app.post("/api/report_card/tasks/complete")
+async def report_card_complete(
+    payload: TaskCompleteRequest,
+    user_id: str = Depends(authenticated_user_id),
+    db: AsyncIOMotorDatabase = Depends(get_db),
+):
+    from tasks.store import complete_task
+
+    try:
+        return await complete_task(
+            db, user_id, payload.task_id, claimed_user_id=payload.user_id
+        )
+    except (PermissionError, LookupError, ValueError) as exc:
+        raise _task_http(exc) from exc
+
+
+@app.post("/api/report_card/tasks/custom")
+async def report_card_custom(
+    payload: TaskCustomRequest,
+    user_id: str = Depends(authenticated_user_id),
+    db: AsyncIOMotorDatabase = Depends(get_db),
+):
+    from tasks.store import add_custom_task
+
+    try:
+        return await add_custom_task(
+            db,
+            user_id,
+            title=payload.title,
+            description=payload.description,
+            claimed_user_id=payload.user_id,
+        )
+    except (PermissionError, LookupError, ValueError) as exc:
+        raise _task_http(exc) from exc
+
+
+@app.patch("/api/report_card/tasks/custom/{claimed_user_id}/{task_id}")
+async def report_card_patch_custom(
+    claimed_user_id: str,
+    task_id: str,
+    payload: TaskCustomPatch,
+    user_id: str = Depends(authenticated_user_id),
+    db: AsyncIOMotorDatabase = Depends(get_db),
+):
+    from tasks.store import patch_custom_task
+
+    try:
+        return await patch_custom_task(
+            db,
+            user_id,
+            task_id,
+            title=payload.title,
+            description=payload.description,
+            is_deleted=payload.is_deleted,
+            claimed_user_id=claimed_user_id,
+        )
+    except (PermissionError, LookupError, ValueError) as exc:
+        raise _task_http(exc) from exc
+
+
+@app.post("/api/session/report")
+async def session_report(
+    payload: SessionReportRequest,
+    user_id: str = Depends(authenticated_user_id),
+    db: AsyncIOMotorDatabase = Depends(get_db),
+):
+    """Post-conversation reading. Ranks at most one meditation from the report state."""
+    from services.session_report import generate_session_report
+
+    try:
+        return await generate_session_report(
+            db, user_id=user_id, session_id=payload.session_id
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@app.post("/api/meditation/preview")
+async def meditation_preview(
+    payload: MeditationPreviewRequest,
+    user_id: str = Depends(authenticated_user_id),
+    db: AsyncIOMotorDatabase = Depends(get_db),
+):
+    """Developer preview of the ranked practice. Debug is not sent on chat cards."""
+    from services.meditation.service import preview_for_user
+
+    return await preview_for_user(db, user_id, payload.message)
+
+
+@app.post("/api/meditation/start")
+async def meditation_start(
+    payload: MeditationStartRequest,
+    user_id: str = Depends(authenticated_user_id),
+    db: AsyncIOMotorDatabase = Depends(get_db),
+):
+    from services.meditation.service import start_execution
+
+    try:
+        doc = await start_execution(
+            db,
+            user_id=user_id,
+            meditation_id=payload.meditation_id,
+            execution_nonce=payload.execution_nonce,
+            session_id=payload.session_id or "",
+            reason=payload.reason or "",
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return _public_execution(doc)
+
+
+@app.post("/api/meditation/complete")
+async def meditation_complete(
+    payload: MeditationCompleteRequest,
+    user_id: str = Depends(authenticated_user_id),
+    db: AsyncIOMotorDatabase = Depends(get_db),
+):
+    from services.meditation.service import complete_execution
+
+    try:
+        doc = await complete_execution(
+            db,
+            user_id=user_id,
+            execution_id=payload.execution_id,
+            execution_nonce=payload.execution_nonce,
+            listen_duration_seconds=payload.listen_duration_seconds,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    return _public_execution(doc)
+
+
+@app.post("/api/meditation/feedback")
+async def meditation_feedback(
+    payload: MeditationFeedbackRequest,
+    user_id: str = Depends(authenticated_user_id),
+    db: AsyncIOMotorDatabase = Depends(get_db),
+):
+    from services.meditation.service import record_feedback
+
+    try:
+        doc = await record_feedback(
+            db,
+            user_id=user_id,
+            execution_id=payload.execution_id,
+            execution_nonce=payload.execution_nonce,
+            feedback=payload.feedback,
+        )
+    except ValueError as exc:
+        message = str(exc)
+        status = 400 if "Unsupported" in message else 404
+        raise HTTPException(status_code=status, detail=message) from exc
+    return _public_execution(doc)
+
+
+def _public_execution(doc: dict) -> dict:
+    return {
+        "execution_id": doc.get("execution_id"),
+        "meditation_id": doc.get("meditation_id"),
+        "status": doc.get("status"),
+        "execution_nonce": doc.get("execution_nonce"),
+        "user_helpfulness_feedback": doc.get("user_helpfulness_feedback"),
+        "listen_duration_seconds": doc.get("listen_duration_seconds") or 0,
+    }
 
 
 @app.get("/health")
