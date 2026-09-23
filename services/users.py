@@ -60,6 +60,7 @@ def public_user_view(doc: Dict[str, Any]) -> Dict[str, Any]:
         "isActive": bool(doc.get("isActive", True)),
         "roles": doc.get("roles") or [],
         "preferred_language": doc.get("preferred_language") or "ENGLISH",
+        "preferred_language_updated_at": doc.get("preferred_language_updated_at"),
         "current_risk_level": doc.get("current_risk_level"),
         "age": doc.get("age"),
         "chief_concern": doc.get("chief_concern"),
@@ -203,6 +204,11 @@ async def authenticate(
 async def set_preferred_language(
     db: AsyncIOMotorDatabase, identifier: str, language: str
 ) -> Optional[Dict[str, Any]]:
+    from services.language_preferences import normalize_language, remember_language
+
+    parsed = normalize_language(language)
+    if not parsed:
+        raise ValueError("Unsupported language")
     doc = await get_by_identifier(db, identifier, include_password=True)
     if not doc:
         return None
@@ -210,11 +216,12 @@ async def set_preferred_language(
         {"_id": doc["_id"]},
         {
             "$set": {
-                "preferred_language": language,
+                "preferred_language": parsed,
                 "preferred_language_updated_at": datetime.now(timezone.utc),
             }
         },
     )
+    remember_language(str(doc.get("user_id") or identifier), parsed)
     updated = await get_by_identifier(db, identifier)
     return public_user_view(updated) if updated else None
 

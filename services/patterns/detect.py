@@ -48,6 +48,8 @@ def detect_candidates(
     candidates.extend(
         _theme_recurrence(user_id, observations.get("conversation") or [])
     )
+    candidates.extend(_sleep_patterns(user_id, observations))
+    candidates.extend(_journal_patterns(user_id, observations))
     return candidates
 
 
@@ -329,6 +331,119 @@ def _theme_recurrence(
                 confidence=conf,
                 last_at=last_at.get(theme),
                 source="user_insights",
+            )
+        )
+    return out
+
+
+def _journal_patterns(
+    user_id: str, observations: Dict[str, List[Dict[str, Any]]]
+) -> List[Dict[str, Any]]:
+    """Journal findings. Hypotheses and contradictions are not stored."""
+    from journaling.patterns import findings
+
+    entries = observations.get("journaling") or []
+    academic = [
+        {"date": _day(item.get("at") or item.get("date")), "value": item.get("value")}
+        for item in (observations.get("academic") or [])
+    ]
+    found = findings(
+        entries,
+        sleep_rows=observations.get("sleep") or [],
+        tasks=observations.get("tasks") or [],
+        academic=academic,
+        feedback=observations.get("meditation_feedback") or [],
+    )
+    out = []
+    for item in found:
+        if item.get("level") not in {"observation", "pattern"}:
+            continue
+        last = None
+        if entries:
+            last = entries[0].get("observed_at")
+        out.append(
+            _candidate(
+                user_id=user_id,
+                pattern_type=PatternType.BEHAVIORAL,
+                domains=[PatternDomain.JOURNALING.value],
+                key=item["key"],
+                description=item["text"],
+                observations=[{"level": item["level"], "source": "journal_entries"}],
+                evidence_count=int(item.get("evidence") or 1),
+                confidence=compute_confidence(
+                    evidence_count=int(item.get("evidence") or 1),
+                    contradiction_count=int(item.get("contradictions") or 0),
+                    consistency=0.75,
+                    data_quality=0.8,
+                ),
+                last_at=last if isinstance(last, datetime) else None,
+                source="journal_entries",
+                contradiction_count=int(item.get("contradictions") or 0),
+            )
+        )
+    return out
+
+
+def _day(value: Any) -> str:
+    if hasattr(value, "date"):
+        return value.date().isoformat()
+    return str(value or "")[:10]
+
+
+def _sleep_patterns(user_id: str, observations: Dict[str, List[Dict[str, Any]]]) -> List[Dict[str, Any]]:
+    """Turn sleep findings into pattern candidates. Hypotheses are not stored."""
+    from sleep.patterns import findings
+
+    rows = []
+    for obs in observations.get("sleep") or []:
+        rows.append(
+            {
+                "user_id": user_id,
+                "date": obs.get("date"),
+                "bedtime": obs.get("bedtime"),
+                "wake_up_time": obs.get("wake_up_time"),
+                "total_duration_minutes": obs.get("value"),
+                "created_at": obs.get("observed_at"),
+            }
+        )
+    moods = [
+        {"date": _day(item.get("at")), "value": item.get("value")}
+        for item in (observations.get("mood") or [])
+    ]
+    academic = [
+        {"date": _day(item.get("at") or item.get("date")), "value": item.get("value")}
+        for item in (observations.get("academic") or [])
+    ]
+    found = findings(
+        rows,
+        moods=moods,
+        tasks=observations.get("tasks") or [],
+        academic=academic,
+        executions=observations.get("sleep_practices") or [],
+    )
+    out = []
+    for item in found:
+        if item.get("level") not in {"observation", "pattern"}:
+            continue
+        last = rows[0].get("created_at") if rows else None
+        out.append(
+            _candidate(
+                user_id=user_id,
+                pattern_type=PatternType.BEHAVIORAL,
+                domains=[PatternDomain.SLEEP.value],
+                key=item["key"],
+                description=item["text"],
+                observations=[{"level": item["level"], "source": "sleep_logs"}],
+                evidence_count=int(item.get("evidence") or 1),
+                confidence=compute_confidence(
+                    evidence_count=int(item.get("evidence") or 1),
+                    contradiction_count=int(item.get("contradictions") or 0),
+                    consistency=0.75,
+                    data_quality=0.8,
+                ),
+                last_at=last if isinstance(last, datetime) else None,
+                source="sleep_logs",
+                contradiction_count=int(item.get("contradictions") or 0),
             )
         )
     return out

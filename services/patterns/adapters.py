@@ -1,7 +1,7 @@
 """Domain adapters — read-only views over existing collections.
 
-Missing domains (sleep tracker, structured journals, tasks, attendance
-writers) return empty observation lists so detectors degrade gracefully.
+Missing domains return empty observation lists so detectors degrade gracefully.
+Journal rows come from the journaling service, not a second store.
 """
 
 from __future__ import annotations
@@ -46,10 +46,11 @@ async def collect_observations(
         "language": await _language_observations(db, user_id),
         "meditation": await _meditation_observations(db, user_id),
         "apm": await _apm_observations(db, user_id),
-        # Gaps — adapters present for future stores
-        "sleep": [],
-        "journaling": [],
-        "tasks": [],
+        "sleep": await _sleep_observations(db, user_id, days),
+        "sleep_practices": await _sleep_practice_feedback(db, user_id),
+        "journaling": await _journal_observations(db, user_id),
+        "meditation_feedback": await _helpful_meditation_days(db, user_id),
+        "tasks": await _task_observations(db, user_id, since),
         "attendance": await _attendance_observations(db, user_id),
     }
 
@@ -206,6 +207,138 @@ async def _meditation_observations(
                 "value": card.get("title"),
                 "at": _as_dt(doc.get("created_at")),
                 "source": "action_card_logs",
+            }
+        )
+    return out
+
+
+async def _sleep_observations(
+    db: AsyncIOMotorDatabase, user_id: str, days: int
+) -> List[Dict[str, Any]]:
+    """Valid sleep_logs rows only. Raw documents are not copied into patterns."""
+    try:
+        from sleep.reader import get_sleep_history, stored_duration, valid_records
+
+        docs = valid_records(await get_sleep_history(db, user_id, days=days))
+    except Exception:
+        return []
+    out = []
+    for doc in docs:
+        minutes = stored_duration(doc)
+        if minutes is None:
+            continue
+        out.append(
+            {
+                "feature": "sleep_duration_minutes",
+                "value": minutes,
+                "date": doc.get("date"),
+                "bedtime": doc.get("bedtime"),
+                "wake_up_time": doc.get("wake_up_time"),
+                "observed_at": _as_dt(doc.get("created_at")),
+                "source": "sleep_logs",
+            }
+        )
+    return out
+
+
+async def _task_observations(
+    db: AsyncIOMotorDatabase, user_id: str, since: datetime
+) -> List[Dict[str, Any]]:
+    """Pending items from daily_tasks. Creation and completion are not success."""
+    try:
+        from tasks.store import recent_task_days
+
+        docs = await recent_task_days(db, user_id, days=14)
+    except Exception:
+        return []
+    out = []
+    for doc in docs:
+        created = _as_dt(doc.get("created_at"))
+        if created is not None and created < since:
+            continue
+        for task in doc.get("tasks") or []:
+            if not isinstance(task, dict) or task.get("is_deleted"):
+                continue
+            out.append(
+                {
+                    "feature": "task_pending",
+                    "date": str(doc.get("date") or ""),
+                    "title": task.get("title"),
+                    "pending": 0 if task.get("completed") else 1,
+                    "incomplete": not bool(task.get("completed")),
+                    "source": "daily_tasks",
+                }
+            )
+    return out
+
+
+async def _sleep_practice_feedback(
+    db: AsyncIOMotorDatabase, user_id: str
+) -> List[Dict[str, Any]]:
+    """Explicit helpfulness on sleep-tagged practices. Not an inferred sleep change."""
+    try:
+        cursor = (
+            db["meditation_executions"]
+            .find({"user_id": user_id, "user_helpfulness_feedback": "HELPFUL"})
+            .sort("completed_at", -1)
+            .limit(40)
+        )
+        docs = await cursor.to_list(length=40)
+    except Exception:
+        return []
+    out = []
+    for doc in docs:
+        if not isinstance(doc, dict):
+            continue
+        category = str(doc.get("category") or "")
+        technique = str(doc.get("technique") or "")
+        if category != "sleep" and "SLEEP" not in technique.upper():
+            continue
+        out.append(
+            {
+                "user_helpfulness_feedback": "HELPFUL",
+                "category": category,
+                "technique": technique,
+                "source": "meditation_executions",
+            }
+        )
+    return out
+
+
+async def _journal_observations(
+    db: AsyncIOMotorDatabase, user_id: str
+) -> List[Dict[str, Any]]:
+    try:
+        from journaling.service import entries_for_patterns
+
+        return await entries_for_patterns(db, user_id)
+    except Exception:
+        return []
+
+
+async def _helpful_meditation_days(
+    db: AsyncIOMotorDatabase, user_id: str
+) -> List[Dict[str, Any]]:
+    try:
+        cursor = (
+            db["meditation_executions"]
+            .find({"user_id": user_id, "user_helpfulness_feedback": "HELPFUL"})
+            .sort("completed_at", -1)
+            .limit(40)
+        )
+        docs = await cursor.to_list(length=40)
+    except Exception:
+        return []
+    out = []
+    for doc in docs:
+        if not isinstance(doc, dict):
+            continue
+        stamp = _as_dt(doc.get("completed_at") or doc.get("started_at"))
+        out.append(
+            {
+                "helpful": True,
+                "date": stamp.date().isoformat() if stamp else "",
+                "source": "meditation_executions",
             }
         )
     return out

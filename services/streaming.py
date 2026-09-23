@@ -65,6 +65,7 @@ from services.action_cards import (
     ensure_psychiatrist_card,
     parse_action_cards,
 )
+from services.meditation.cards import ensure_single_meditation_card
 from services.patterns.window import evaluate_turn_risk, format_action_card_context
 from services.apm import contains_crisis_signal, get_adaptive_memory_context
 from services.chat_history import (
@@ -149,12 +150,13 @@ async def stream_chat_graph(
             session_id,
         )
 
+        from services.language_preferences import crisis_message, resolve_response_language
+
+        resolved = await resolve_response_language(db, user_id)
+        crisis_reply = crisis_message(resolved["resolved_language"])
         crisis_data = {
             "title": "Immediate Support Available",
-            "message": (
-                "If you are in distress or having thoughts of self-harm, "
-                "please know that you are not alone. Immediate support is available:"
-            ),
+            "message": crisis_reply,
             "helplines": [
                 {
                     "name": "Tele-MANAS",
@@ -253,6 +255,10 @@ async def stream_chat_graph(
         last_session_context=user_context.get("last_session_context"),
         adaptive_memory_context=user_context.get("adaptive_memory_context"),
         pattern_context=user_context.get("pattern_context"),
+        sleep_context=user_context.get("sleep_context"),
+        journal_context=user_context.get("journal_context"),
+        task_context=user_context.get("task_context"),
+        language_instruction=user_context.get("language_instruction"),
         session_phase=session_phase_instructions(
             opening_turn=False,
             message_history=history_for_hint,
@@ -353,6 +359,7 @@ async def stream_chat_graph(
         pattern_id=risk_decision.pattern_id,
         trigger_reason=risk_decision.trigger_reason,
     )
+    cards = ensure_single_meditation_card(cards, None, suppress=True)
 
     if cards:
         for card in cards:

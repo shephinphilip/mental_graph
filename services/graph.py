@@ -66,13 +66,13 @@ from prompts import (
     session_phase_instructions,
 )
 from services.action_cards import (
-    CRISIS_FAST_TRACK_REPLY,
     attach_apm_execution_metadata,
     build_crisis_support_card,
     ensure_psychiatrist_card,
     parse_action_cards,
 )
 from services.apm import contains_crisis_signal
+from services.meditation.cards import ensure_single_meditation_card
 from services.patterns.window import evaluate_turn_risk, format_action_card_context
 from services.apm import get_adaptive_memory_context
 from services.chat_history import (
@@ -146,6 +146,7 @@ class ChatState(TypedDict, total=False):
     action_cards: list
     attach_psychiatrist_card: bool
     risk_assessment: Dict[str, Any]
+    meditation_offer: Dict[str, Any]
 
 
 # ════════════════════════════════════════════════════════════════════════════
@@ -341,6 +342,10 @@ async def generate_node(state: ChatState) -> dict:
         last_session_context=context.get("last_session_context"),
         adaptive_memory_context=context.get("adaptive_memory_context"),
         pattern_context=context.get("pattern_context"),
+        sleep_context=context.get("sleep_context"),
+        journal_context=context.get("journal_context"),
+        task_context=context.get("task_context"),
+        language_instruction=context.get("language_instruction"),
         session_phase=session_phase_instructions(
             opening_turn=bool(state.get("opening_turn")),
             message_history=message_history,
@@ -441,6 +446,11 @@ async def format_output_node(state: ChatState) -> dict:
         attach=bool(state.get("attach_psychiatrist_card")),
         pattern_id=risk.get("pattern_id"),
         trigger_reason=risk.get("trigger_reason") or "",
+    )
+    action_cards = ensure_single_meditation_card(
+        action_cards,
+        None,
+        suppress=True,
     )
 
     # Step 2: Persist history as separate role-tagged records (idempotent).
@@ -634,14 +644,18 @@ async def run_chat_graph(
                 user_id,
                 session_id,
             )
+            from services.language_preferences import crisis_message, resolve_response_language
+
             crisis_card = build_crisis_support_card()
+            resolved = await resolve_response_language(db, user_id)
+            crisis_reply = crisis_message(resolved["resolved_language"])
             try:
                 await persist_user_and_assistant(
                     db,
                     user_id=user_id,
                     session_id=session_id,
                     user_message=user_message,
-                    assistant_reply=CRISIS_FAST_TRACK_REPLY,
+                    assistant_reply=crisis_reply,
                 )
             except Exception:
                 logger.exception(
@@ -649,7 +663,7 @@ async def run_chat_graph(
                 )
             return {
                 "session_id": session_id,
-                "reply": CRISIS_FAST_TRACK_REPLY,
+                "reply": crisis_reply,
                 "action_cards": [crisis_card.model_dump()],
             }
 

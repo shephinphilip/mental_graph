@@ -113,6 +113,35 @@ async def fetch_user_context(
     except Exception:
         logger.exception("Pattern context fetch failed for user=%s", user_id)
 
+    sleep_context = "No sleep data available"
+    try:
+        from sleep.context import build_sleep_context
+
+        sleep_context = await build_sleep_context(db, user_id)
+    except Exception:
+        logger.exception("Sleep context fetch failed for user=%s", user_id)
+
+    journal_context = "No journal entries available."
+    try:
+        from journaling.context import build_journal_context
+
+        journal_context = await build_journal_context(db, user_id)
+    except Exception:
+        logger.exception("Journal context fetch failed for user=%s", user_id)
+
+    task_context = "No tasks available."
+    try:
+        from tasks.context import build_task_context
+
+        task_context = await build_task_context(db, user_id)
+    except Exception:
+        logger.exception("Task context fetch failed for user=%s", user_id)
+
+    from services.language_preferences import language_instruction, resolve_response_language
+
+    language = await resolve_response_language(db, user_id)
+    instruction = language_instruction(language)
+
     logger.debug(
         "Context aggregated for user=%s — memory=%d chars, moods=%d chars, habits=%d chars",
         user_id,
@@ -127,6 +156,11 @@ async def fetch_user_context(
         "active_habits": active_habits,
         "last_session_context": last_session,
         "pattern_context": pattern_context,
+        "sleep_context": sleep_context,
+        "journal_context": journal_context,
+        "task_context": task_context,
+        "preferred_language": language["resolved_language"],
+        "language_instruction": instruction,
         **profile_fields,
     }
 
@@ -341,7 +375,7 @@ async def _fetch_profile_and_structured_context(
     if not user_doc:
         return {
             "user_profile": (
-                "Age and setting unknown. Do not assume an age band. Let their language lead."
+                "Age and setting unknown. Do not assume an age band."
             ),
             "academic_context": "No academic data available",
             "attendance_context": "No attendance data available",
@@ -362,8 +396,11 @@ async def _fetch_profile_and_structured_context(
         profile_parts.append(f"School: {user_doc['school']}")
     if user_doc.get("school_board") or user_doc.get("board"):
         profile_parts.append(f"Board: {user_doc.get('school_board') or user_doc.get('board')}")
-    if user_doc.get("preferred_language"):
-        profile_parts.append(f"Preferred language: {user_doc['preferred_language']}")
+    from services.language_preferences import normalize_language
+
+    stored_language = normalize_language(user_doc.get("preferred_language"))
+    if stored_language:
+        profile_parts.append(f"Preferred language: {stored_language}")
     if user_doc.get("chief_concern"):
         profile_parts.append(f"Chief concern on file: {user_doc['chief_concern']}")
     if user_doc.get("city"):
@@ -380,7 +417,7 @@ async def _fetch_profile_and_structured_context(
     return {
         "user_profile": (
             "\n".join(p for p in profile_parts if p)
-            or "Age and setting unknown. Do not assume an age band. Let their language lead."
+            or "Age and setting unknown. Do not assume an age band."
         ),
         "academic_context": _stringify_structured_block(academic, "No academic data available"),
         "attendance_context": _stringify_structured_block(
