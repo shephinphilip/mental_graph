@@ -302,14 +302,9 @@ def test_every_documented_route_is_actually_mounted():
     green for a while when none of these routes existed and every client got
     a 404. Assert the mounting itself.
     """
-    from app import app
+    from tests.api.test_http_contract import _mounted_paths
 
-    mounted = {
-        (path, method)
-        for route in app.routes
-        for path in [getattr(route, "path", "")]
-        for method in getattr(route, "methods", set()) or set()
-    }
+    mounted = _mounted_paths()
     for expected in [
         ("/api/mood", "POST"),
         ("/api/mood/recent", "GET"),
@@ -327,5 +322,7 @@ def test_the_indexes_are_ensured_at_startup():
     import inspect
 
     import database
+    from db import indexes as db_indexes
 
-    assert "ensure_tracking_indexes" in inspect.getsource(database.lifespan)
+    assert "ensure_all_indexes" in inspect.getsource(database.lifespan)
+    assert "ensure_tracking_indexes" in inspect.getsource(db_indexes.ensure_all_indexes)
