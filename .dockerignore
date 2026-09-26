@@ -1,0 +1,20 @@
+.git
+.gitignore
+.venv
+__pycache__
+*.pyc
+*.pyo
+.env
+.env.*
+!.env.example
+tests
+docs
+scripts
+load_tests
+canvases
+*.md
+streamlit_app.py
+verify_*.py
+meditation/meditation audios
+.cursor
+agent-transcripts

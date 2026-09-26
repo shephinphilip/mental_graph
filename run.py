@@ -20,13 +20,13 @@ may cause unexpected restarts.
 
 Production Deployment
 ---------------------
-For production, remove ``--reload`` and set appropriate worker counts::
+Do not use ``--reload``. The canonical command is::
 
-    uvicorn app:app --host 0.0.0.0 --port 8000 --workers 4
+    uvicorn app:app --host 0.0.0.0 --port 8000 --workers 2 --timeout-keep-alive 75
 
-Or use Gunicorn with the uvicorn worker class::
-
-    gunicorn app:app -k uvicorn.workers.UvicornWorker --workers 4 --bind 0.0.0.0:8000
+Or the Docker image ``CMD``, which runs the same target without reload.
+The factory lives in ``api.application.create_app``; ``app.py`` only
+exposes that instance so this command stays stable.
 """
 
 import uvicorn
