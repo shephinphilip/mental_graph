@@ -92,6 +92,18 @@ class Settings(BaseSettings):
     RISK_ROLLING_HOURS: int = 6
     RISK_CARD_COOLDOWN_HOURS: int = 72
 
+    # ── Professional consultation evaluation ─────────────────────────────────
+    CONSULTATION_COOLDOWN_DAYS: int = 30
+    CONSULTATION_LOOKBACK_DAYS: int = 14
+    CONSULTATION_REPORT_METRIC_THRESHOLD: int = 7
+    CONSULTATION_MIN_ELEVATED_REPORTS: int = 2
+    CONSULTATION_MIN_RISK_TURNS: int = 6
+
+    # ── Structured student memory ────────────────────────────────────────────
+    MEMORY_CONTEXT_LIMIT: int = 8
+    MEMORY_DECAY_PER_DAY: float = 0.01
+    MEMORY_MIN_IMPORTANCE: float = 0.2
+
     # ── Meditation ranking ──────────────────────────────────────────────────
     # State match (PAD + latent) outweighs personal history so a new feeling
     # is not swallowed by an old favorite. Friction and cognitive load sit
@@ -132,6 +144,12 @@ class Settings(BaseSettings):
     # ── Conversation ──────────────────────────────────────────────────────────
     MAX_HISTORY_MESSAGES: int = 20
     MOOD_LOG_LOOKBACK_DAYS: int = 7
+
+    # ── Mood check-ins and habits ────────────────────────────────────────────
+    # A miss is forgiven so a streak never becomes another thing to fail at.
+    HABIT_GRACE_MISSES_PER_WEEK: int = 1
+    HABIT_MAX_ACTIVE: int = 20
+    MOOD_BACKFILL_MAX_DAYS: int = 30
 
 
 @lru_cache

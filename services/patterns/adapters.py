@@ -60,7 +60,15 @@ async def _mood_observations(
 ) -> List[Dict[str, Any]]:
     cursor = (
         db["mood_logs"]
-        .find({"user_id": user_id, "created_at": {"$gte": since}})
+        .find(
+            {
+                "user_id": user_id,
+                "created_at": {"$gte": since},
+                # A note carrying crisis wording is stored and surfaced, but it
+                # never becomes training signal for pattern detection.
+                "crisis_flagged": {"$ne": True},
+            }
+        )
         .sort("created_at", -1)
         .limit(90)
     )

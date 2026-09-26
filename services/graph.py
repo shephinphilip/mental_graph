@@ -345,6 +345,7 @@ async def generate_node(state: ChatState) -> dict:
         sleep_context=context.get("sleep_context"),
         journal_context=context.get("journal_context"),
         task_context=context.get("task_context"),
+        care_context=context.get("care_context"),
         language_instruction=context.get("language_instruction"),
         session_phase=session_phase_instructions(
             opening_turn=bool(state.get("opening_turn")),

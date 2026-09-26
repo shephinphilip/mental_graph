@@ -97,7 +97,30 @@ async def fetch_user_context(
     recent_moods = await _fetch_recent_moods(db, user_id, settings.MOOD_LOG_LOOKBACK_DAYS)
     active_habits = await _fetch_active_habits(db, user_id)
     profile_fields = await _fetch_profile_and_structured_context(db, user_id)
-    last_session = await _fetch_last_session_context(db, user_id, session_id)
+    if not opening_turn and (user_message or "").strip():
+        try:
+            from reports.resolve import maybe_resolve_events, prior_assistant_text
+
+            prior = await prior_assistant_text(db, user_id, session_id)
+            await maybe_resolve_events(
+                db,
+                user_id,
+                user_message,
+                prior,
+                opening_turn=False,
+            )
+        except Exception:
+            logger.exception("Event resolution failed for user=%s", user_id)
+    try:
+        from reports.context import build_prior_session_context
+
+        last_session = await build_prior_session_context(db, user_id)
+    except Exception:
+        logger.exception("Prior report context failed for user=%s", user_id)
+        last_session = (
+            "No previous session report. This is the first conversation on file. "
+            "Do not invent an earlier event."
+        )
 
     marks_block = await academic_context_for_turn(
         db, user_id, user_message, opening_turn=opening_turn
@@ -137,6 +160,30 @@ async def fetch_user_context(
     except Exception:
         logger.exception("Task context fetch failed for user=%s", user_id)
 
+    try:
+        from student_memory.context import EMPTY as NO_FACTS, build_memory_context
+
+        facts_block = await build_memory_context(db, user_id)
+        if facts_block != NO_FACTS:
+            user_memory = (
+                facts_block
+                if user_memory == "No prior session history available."
+                else user_memory + "\n\n" + facts_block
+            )
+    except Exception:
+        logger.exception("Student memory context failed for user=%s", user_id)
+
+    care_context = (
+        "No professional-care status on file. Do not raise referral unless the "
+        "action card context says a card is attached."
+    )
+    try:
+        from consultation.context import build_care_context
+
+        care_context = await build_care_context(db, user_id)
+    except Exception:
+        logger.exception("Care context failed for user=%s", user_id)
+
     from services.language_preferences import language_instruction, resolve_response_language
 
     language = await resolve_response_language(db, user_id)
@@ -159,6 +206,7 @@ async def fetch_user_context(
         "sleep_context": sleep_context,
         "journal_context": journal_context,
         "task_context": task_context,
+        "care_context": care_context,
         "preferred_language": language["resolved_language"],
         "language_instruction": instruction,
         **profile_fields,
@@ -429,47 +477,3 @@ async def _fetch_profile_and_structured_context(
     }
 
 
-async def _fetch_last_session_context(
-    db: AsyncIOMotorDatabase, user_id: str, current_session_id: str
-) -> str:
-    """Load a compact transcript from the user's most recent *other* session."""
-    query: Dict[str, Any] = {"user_id": user_id}
-    if current_session_id:
-        query["session_id"] = {"$ne": current_session_id}
-
-    latest = await db["messages"].find_one(query, sort=[("created_at", -1)])
-    if not latest:
-        return "No previous session. This is the first conversation on file."
-
-    prior_session_id = latest.get("session_id")
-    cursor = (
-        db["messages"]
-        .find(
-            {"user_id": user_id, "session_id": prior_session_id},
-            {"role": 1, "content": 1, "created_at": 1},
-        )
-        .sort("created_at", -1)
-        .limit(8)
-    )
-    docs = await cursor.to_list(length=8)
-    docs.reverse()
-
-    from services.security import decrypt_payload
-
-    lines = []
-    for doc in docs:
-        role = "Student" if doc.get("role") == "user" else "Zenark"
-        content = decrypt_payload(doc.get("content", ""))
-        snippet = content.replace("\n", " ").strip()[:180]
-        lines.append(f"{role}: {snippet}")
-
-    when = latest.get("created_at")
-    when_str = when.strftime("%d %b %Y") if hasattr(when, "strftime") else ""
-    header = f"Previous session {prior_session_id}"
-    if when_str:
-        header += f" (last activity {when_str})"
-    return (
-        header
-        + ". Refer to this naturally if useful; do not recap unless it matters.\n"
-        + "\n".join(lines)
-    )

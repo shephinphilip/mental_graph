@@ -105,7 +105,7 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-DEFAULT_API = "http://localhost:8000"
+DEFAULT_API = "https://suspected-genuine-concepts-lit.trycloudflare.com"
 FALLBACK_WELCOME = (
     "I'm here. Whenever you're ready, tell me what's been sitting with you."
 )
@@ -440,6 +440,16 @@ with st.sidebar:
                 st.rerun()
             else:
                 st.error("Could not update memory consent.")
+        try:
+            care = requests.get(
+                f"{api_base()}/consultation-evaluation/status",
+                headers=auth_headers(),
+                timeout=10,
+            )
+            if care.ok and care.json().get("status") == "REFERRED":
+                st.caption("A professional-care option is available whenever you want it.")
+        except requests.exceptions.ConnectionError:
+            pass
         if st.button("Session report", use_container_width=True):
             try:
                 report = requests.post(
@@ -707,6 +717,16 @@ if session_report:
     with st.container(border=True):
         st.markdown("**Session report**")
         st.write(session_report.get("summary") or "")
+        metric = session_report.get("psychiatric_metric")
+        if isinstance(metric, int):
+            st.caption(f"Session load {metric}/10")
+        open_events = [
+            event.get("label")
+            for event in (session_report.get("events") or [])
+            if event.get("label") and not event.get("resolved")
+        ]
+        if open_events:
+            st.caption("Still open: " + "; ".join(open_events))
         recommendation = session_report.get("recommendation") or {}
         card = recommendation.get("action_card")
         if card:
@@ -716,10 +736,34 @@ if session_report:
         report_tasks = session_report.get("tasks") or []
         if report_tasks:
             st.markdown("**Suggested for today**")
+            st.caption("Add the ones you want on today's list.")
             for task in report_tasks:
                 st.write(task.get("title") or "")
                 if task.get("description"):
                     st.caption(task["description"])
+                if task.get("added"):
+                    st.caption("Added to today")
+                    continue
+                if st.button(
+                    "Add to today",
+                    key=f"add_report_task_{task.get('id')}",
+                    width="content",
+                ):
+                    added = requests.post(
+                        f"{api_base()}/api/reports/tasks/accept",
+                        headers=auth_headers(),
+                        json={
+                            "session_id": session_report.get("session_id")
+                            or st.session_state.get("session_id"),
+                            "task_id": task.get("id"),
+                        },
+                        timeout=20,
+                    )
+                    if added.ok:
+                        task["added"] = True
+                        st.rerun()
+                    else:
+                        st.error("Could not add that task.")
         elif session_report.get("task_persistence") == "failed":
             st.caption("The report is saved. Today's tasks could not be updated.")
 

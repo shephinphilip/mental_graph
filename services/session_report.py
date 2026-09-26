@@ -235,10 +235,24 @@ async def generate_session_report(db, *, user_id: str, session_id: str) -> Dict[
     if crisis:
         summary = crisis_message(language) + " " + summary
 
+    from reports.store import save_reading
+
+    reading = await save_reading(
+        db,
+        user_id=user_id,
+        session_id=session_id,
+        summary=summary,
+        parsed=parsed,
+        crisis=crisis,
+    )
     doc = {
         "user_id": user_id,
         "session_id": session_id,
         "summary": summary,
+        "psychiatric_summary": reading["psychiatric_summary"],
+        "psychiatric_metric": reading["psychiatric_metric"],
+        "events": reading["events"],
+        "proposed_tasks": reading["proposed_tasks"],
         "emotional_state": {
             "valence": estimate.valence,
             "arousal": estimate.arousal,
@@ -254,22 +268,8 @@ async def generate_session_report(db, *, user_id: str, session_id: str) -> Dict[
         "recommendation": recommendation,
         "created_at": datetime.now(timezone.utc),
     }
-    task_result = {"tasks": [], "task_persistence": "skipped"}
-    try:
-        from tasks.store import persist_report_tasks
-
-        task_result = await persist_report_tasks(
-            db,
-            user_id,
-            session_id,
-            [] if crisis else parsed.get("tasks"),
-            crisis=crisis,
-        )
-    except Exception:
-        logger.exception("Report task persistence failed for user=%s", user_id)
-        task_result = {"tasks": [], "task_persistence": "failed"}
-    doc["tasks"] = task_result.get("tasks") or []
-    doc["task_persistence"] = task_result.get("task_persistence")
+    doc["tasks"] = reading["proposed_tasks"]
+    doc["task_persistence"] = reading["task_persistence"]
     try:
         await db[REPORTS].update_one(
             {"user_id": user_id, "session_id": session_id},
@@ -279,11 +279,30 @@ async def generate_session_report(db, *, user_id: str, session_id: str) -> Dict[
     except Exception:
         logger.exception("Could not store session report for user=%s", user_id)
 
+    memory_result = {"inserted": 0, "confirmed": 0}
+    if not crisis:
+        try:
+            from services.apm import personalization_enabled
+            from student_memory.store import upsert_facts
+
+            if await personalization_enabled(db, user_id):
+                memory_result = await upsert_facts(db, user_id, session_id, parsed.get("facts"))
+        except Exception:
+            logger.exception("Student memory write failed for user=%s", user_id)
+
+    from consultation.evaluate import evaluate_after_report
+
+    await evaluate_after_report(db, user_id, session_id)
+
     return {
         "session_id": session_id,
         "summary": summary,
         "recommendation": recommendation,
         "withheld_reason": decision.withheld_reason if recommendation is None else "",
-        "tasks": task_result.get("tasks") or [],
-        "task_persistence": task_result.get("task_persistence") or "failed",
+        "psychiatric_summary": reading["psychiatric_summary"],
+        "psychiatric_metric": reading["psychiatric_metric"],
+        "events": reading["events"],
+        "tasks": reading["proposed_tasks"],
+        "task_persistence": reading["task_persistence"],
+        "memory_facts": memory_result,
     }

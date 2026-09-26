@@ -172,6 +172,47 @@ async def persist_report_tasks(
         return {"tasks": proposals, "task_persistence": "failed"}
 
 
+async def add_selected_report_task(
+    db,
+    user_id: str,
+    session_id: str,
+    raw_task: Dict[str, Any],
+    *,
+    now: Optional[datetime] = None,
+) -> Dict[str, Any]:
+    """Append one report task the person chose. Other proposals are left alone."""
+    now = now or datetime.now(timezone.utc)
+    try:
+        doc = await ensure_today(db, user_id, now=now)
+        existing = list(doc.get("tasks") or [])
+        proposals = validate_proposals([raw_task], existing)
+        if not proposals:
+            title = str((raw_task or {}).get("title") or "").strip().lower()
+            for task in existing:
+                if str(task.get("title") or "").strip().lower() == title and title:
+                    return {"task": public_task(task), "task_persistence": "existing"}
+            return {"task": None, "task_persistence": "skipped"}
+        created = {
+            "id": new_task_id("task"),
+            "title": proposals[0]["title"],
+            "description": proposals[0]["description"],
+            "completed": False,
+            "is_custom": False,
+            "is_deleted": False,
+            "source": "REPORT",
+            "source_session_id": session_id,
+            "created_at": now,
+        }
+        await db[COLLECTION].update_one(
+            {"user_id": user_id, "date": server_today(now)},
+            {"$push": {"tasks": {"$each": [created]}}},
+        )
+        return {"task": public_task(created), "task_persistence": "saved"}
+    except Exception:
+        logger.exception("Could not add selected report task for user=%s", user_id)
+        return {"task": None, "task_persistence": "failed"}
+
+
 async def list_today(db, user_id: str, *, claimed_user_id: Optional[str] = None) -> Dict[str, Any]:
     keys = await identity_keys(db, user_id)
     if not owns_claimed_id(keys, claimed_user_id):

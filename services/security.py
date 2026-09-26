@@ -5,8 +5,13 @@ services/security.py — Encryption and PII Anonymization Layer
 Provides two complementary security functions for protecting sensitive
 user data before it leaves the application boundary:
 
-1. E2EE Payload Encryption / Decryption (Fernet / AES-128-CBC)
+1. At-Rest Payload Encryption / Decryption (Fernet / AES-128-CBC)
 ----------------------------------------------------------------
+   This is server-side encryption at rest, not end-to-end encryption.
+   The server holds the key and reads content in the clear to generate
+   replies, detect crisis signals, and compute insights.  See
+   docs/ENCRYPTION.md for the boundary and its known weaknesses.
+
    ``encrypt_payload(text)`` and ``decrypt_payload(token)``
 
    Encrypts message content before writing to MongoDB and decrypts when

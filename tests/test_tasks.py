@@ -61,7 +61,12 @@ class _Collection:
                     doc.setdefault(field, []).extend(extra)
             return SimpleNamespace(modified_count=1)
         if upsert:
-            created = dict(update.get("$setOnInsert") or {})
+            created = {}
+            for key, value in query.items():
+                if not isinstance(value, dict):
+                    created[key] = value
+            created.update(update.get("$setOnInsert") or {})
+            created.update(update.get("$set") or {})
             self.docs.append(created)
             return SimpleNamespace(modified_count=1)
         return SimpleNamespace(modified_count=0)
@@ -346,12 +351,20 @@ async def test_session_report_persists_model_tasks(monkeypatch):
         second = await generate_session_report(db, user_id="user_a", session_id="sess")
 
     assert report["tasks"][0]["title"] == "Start the first three questions"
-    assert report["task_persistence"] == "saved"
+    assert report["task_persistence"] == "proposed"
+    assert report["tasks"][0]["added"] is False
     assert "source_session_id" not in report["tasks"][0]
-    assert second["task_persistence"] == "existing"
+    assert second["task_persistence"] == "proposed"
+    assert db["daily_tasks"].docs == []
+    from reports.store import accept_proposed_task
+
+    accepted = await accept_proposed_task(
+        db, "user_a", "sess", report["tasks"][0]["id"]
+    )
+    assert accepted["task_persistence"] == "saved"
     assert len(db["daily_tasks"].docs[0]["tasks"]) == 1
     monkeypatch.setattr(
         "services.apm.record_intervention_feedback",
         AsyncMock(side_effect=AssertionError("task write must not be an APM success")),
     )
-    await complete_task(db, "user_a", report["tasks"][0]["id"])
+    await complete_task(db, "user_a", accepted["task"]["manager_task_id"])

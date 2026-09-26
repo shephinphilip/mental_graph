@@ -34,6 +34,7 @@ Section 5 — Session Resumption & Safety
 """
 
 from enum import Enum
+from datetime import datetime
 from typing import Any, Dict, List, Optional
 
 from pydantic import BaseModel, Field
@@ -600,6 +601,28 @@ class SessionReportRequest(BaseModel):
     session_id: str
 
 
+class ConsultationManualRequest(BaseModel):
+    """Self by default. Staff may name another user."""
+
+    user_id: Optional[str] = None
+
+
+class ConsultationOverrideRequest(BaseModel):
+    user_id: str
+    status: str
+    reason: str
+
+
+class ConsultationBatchRequest(BaseModel):
+    user_ids: List[str]
+
+
+class AcceptReportTaskRequest(BaseModel):
+    session_id: str
+    task_id: str
+    user_id: Optional[str] = None
+
+
 class TaskCompleteRequest(BaseModel):
     task_id: str
     user_id: Optional[str] = None
@@ -636,3 +659,52 @@ class SleepLogRequest(BaseModel):
     date: str
     total_duration_minutes: Optional[int] = None
     user_id: Optional[str] = None
+
+
+class MoodLogRequest(BaseModel):
+    """One check-in. Only the mood is required, so a single tap is enough.
+
+    ``logged_at`` is typed as a datetime because ``resolve_logged_at`` ignores
+    anything else and silently dates the row to now, which would lose the day
+    an offline entry actually describes.
+    """
+
+    mood: str
+    score: Optional[float] = None
+    note: str = ""
+    input_format: Optional[str] = None
+    client_event_id: Optional[str] = None
+    logged_at: Optional[datetime] = None
+    user_id: Optional[str] = None
+
+
+class HabitCreateRequest(BaseModel):
+    """A habit the person set for themselves. Never assigned by the AI."""
+
+    title: str
+    frequency: str = "daily"
+    reminder_time: str = ""
+    user_id: Optional[str] = None
+
+
+class HabitPatchRequest(BaseModel):
+    """Rename, retime, pause, or archive. Completion history is untouched."""
+
+    title: Optional[str] = None
+    frequency: Optional[str] = None
+    reminder_time: Optional[str] = None
+    status: Optional[str] = None
+    user_id: Optional[str] = None
+
+
+class HabitCheckInRequest(BaseModel):
+    """An empty body means today. ``on_date`` lets an offline client backfill."""
+
+    on_date: Optional[str] = None
+    user_id: Optional[str] = None
+
+
+class StreakVisibilityRequest(BaseModel):
+    """Opting out hides streaks from the chatbot as well as the screen."""
+
+    show_streaks: bool

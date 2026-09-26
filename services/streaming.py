@@ -258,6 +258,7 @@ async def stream_chat_graph(
         sleep_context=user_context.get("sleep_context"),
         journal_context=user_context.get("journal_context"),
         task_context=user_context.get("task_context"),
+        care_context=user_context.get("care_context"),
         language_instruction=user_context.get("language_instruction"),
         session_phase=session_phase_instructions(
             opening_turn=False,
