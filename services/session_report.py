@@ -168,8 +168,10 @@ async def generate_session_report(db, *, user_id: str, session_id: str) -> Dict[
     except Exception:
         logger.exception("Pending task note failed during session report")
 
+    from integrations.resilience import resilient_ainvoke
+
     llm = get_llm()
-    response = await llm.ainvoke(
+    response = await resilient_ainvoke(llm,
         sanitize_messages_for_bedrock(
             [
                 SystemMessage(content=report_system_prompt(resolved)),

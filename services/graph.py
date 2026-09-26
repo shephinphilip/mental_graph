@@ -374,9 +374,10 @@ async def generate_node(state: ChatState) -> dict:
         raw_messages.append(HumanMessage(content=current_user_message))
     messages = sanitize_messages_for_bedrock(raw_messages)
 
-    # Invoke the LLM chain
+    from integrations.resilience import resilient_ainvoke
+
     llm = get_llm()
-    response = await llm.ainvoke(messages)
+    response = await resilient_ainvoke(llm, messages)
 
     # Extract the text content; handle both message objects and raw strings
     raw_output = response.content if hasattr(response, "content") else str(response)
