@@ -1,0 +1,20 @@
+# Complete machine-readable spec (every mounted path, including /api/v1 aliases):
+#   docs/api/openapi.json
+# Regenerated from FastAPI:  python -c "import json; from app import app; ..."
+#
+# This YAML file records the contract version. Do not invent paths here.
+
+openapi: 3.1.0
+info:
+  title: Zenark API
+  version: 0.4.0
+  description: >
+    Compatibility routes plus /api/v1 remounts of the same handlers.
+    Full path list and schemas are in openapi.json (92 paths).
+servers:
+  - url: http://127.0.0.1:8000
+    description: Local development (python run.py)
+paths:
+  $ref: "./openapi.json#/paths"
+components:
+  $ref: "./openapi.json#/components"
