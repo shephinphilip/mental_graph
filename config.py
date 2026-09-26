@@ -39,6 +39,14 @@ class Settings(BaseSettings):
     # ── MongoDB ──────────────────────────────────────────────────────────────
     MONGODB_URI: str = "mongodb://localhost:27017"
     DATABASE_NAME: str = "mental_health"
+    # Aliases from the production-readiness spec. Empty means "use the pair above".
+    MONGO_URI: str = ""
+    MONGO_DB_NAME: str = ""
+    MONGO_MAX_POOL_SIZE: int = 100
+    MONGO_MIN_POOL_SIZE: int = 5
+    MONGO_SERVER_SELECTION_TIMEOUT_MS: int = 5_000
+    MONGO_CONNECT_TIMEOUT_MS: int = 5_000
+    MONGO_SOCKET_TIMEOUT_MS: int = 30_000
 
     # ── Bedrock Model Identifiers ─────────────────────────────────────────────
     BEDROCK_MODEL: str = "google.gemma-3-27b-it"
@@ -150,6 +158,33 @@ class Settings(BaseSettings):
     HABIT_GRACE_MISSES_PER_WEEK: int = 1
     HABIT_MAX_ACTIVE: int = 20
     MOOD_BACKFILL_MAX_DAYS: int = 30
+
+    # ── Query bounds ─────────────────────────────────────────────────────────
+    DEFAULT_LIMIT: int = 50
+    MAX_LIMIT: int = 90
+
+    # ── Environment ──────────────────────────────────────────────────────────
+    APP_ENV: str = "development"
+    LOG_LEVEL: str = "INFO"
+    CORS_ORIGINS: str = ""
+    TRUSTED_HOSTS: str = ""
+
+    # ── Rate limiting (process-local unless RATE_LIMIT_BACKEND=redis) ────────
+    RATE_LIMIT_ENABLED: bool = True
+    RATE_LIMIT_BACKEND: str = "memory"
+    RATE_LIMIT_AUTH_PER_MINUTE: int = 20
+    RATE_LIMIT_CHAT_PER_MINUTE: int = 60
+    RATE_LIMIT_STREAM_PER_MINUTE: int = 30
+    RATE_LIMIT_REPORT_PER_MINUTE: int = 10
+    RATE_LIMIT_DEFAULT_PER_MINUTE: int = 300
+
+    # ── LLM resilience ───────────────────────────────────────────────────────
+    LLM_TIMEOUT_SECONDS: float = 45.0
+    LLM_MAX_RETRIES: int = 2
+    LLM_RETRY_BASE_SECONDS: float = 0.4
+    LLM_CONCURRENCY: int = 16
+    LLM_CIRCUIT_FAILURES: int = 8
+    LLM_CIRCUIT_RESET_SECONDS: float = 30.0
 
 
 @lru_cache
