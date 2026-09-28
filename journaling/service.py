@@ -16,6 +16,7 @@ from config.config import get_settings
 from journaling.identity import identity_keys, identity_query, owns_claimed_id
 from journaling.models import clean_tags, topics_from, validate_entry
 from services.apm import contains_crisis_signal
+from services.security import open_text, seal_text
 
 
 def _as_dt(value: Any) -> Optional[datetime]:
@@ -49,7 +50,7 @@ async def _fetch(db, keys: List[str], *, extra: Optional[Dict[str, Any]] = None,
 
 def public_entry(doc: Dict[str, Any], *, preview_chars: Optional[int] = None) -> Dict[str, Any]:
     """Student-facing shape. Full text only when preview_chars is omitted."""
-    content = str(doc.get("content") or "")
+    content = open_text(str(doc.get("content") or ""))
     if preview_chars is not None:
         content = content[:preview_chars]
     return {
@@ -98,7 +99,8 @@ async def create_journal_entry(
     for existing in recent:
         created = _as_dt(existing.get("created_at"))
         if created and (now - created) <= timedelta(minutes=2) and _same(
-            existing, {"title": title, "content": content, "mood": mood}
+            {**existing, "content": open_text(str(existing.get("content") or ""))},
+            {"title": title, "content": content, "mood": mood},
         ):
             existing["duplicate"] = True
             return existing
@@ -107,7 +109,7 @@ async def create_journal_entry(
         "user_id": authenticated_user_id,
         "mood": mood,
         "title": title,
-        "content": content,
+        "content": seal_text(content),
         "tags": cleaned,
         "time_spent": spent,
         "is_favorite": False,
@@ -116,9 +118,10 @@ async def create_journal_entry(
         "created_at": now,
         "updated_at": now,
     }
-    await db["journal_entries"].insert_one(doc)
-    doc["duplicate"] = False
-    return doc
+    stored = {**doc, "content": seal_text(content)}
+    await db["journal_entries"].insert_one(stored)
+    returned = {**stored, "content": content, "duplicate": False}
+    return returned
 
 
 async def get_entry(db, authenticated_user_id: str, entry_id: str) -> Optional[Dict[str, Any]]:
@@ -196,7 +199,8 @@ async def entries_for_patterns(db, authenticated_user_id: str, *, limit: int = 3
     rows = await _fetch(db, await identity_keys(db, authenticated_user_id), limit=limit)
     out = []
     for row in rows:
-        if contains_crisis_signal(str(row.get("content") or "")) or contains_crisis_signal(
+        body = open_text(str(row.get("content") or ""))
+        if contains_crisis_signal(body) or contains_crisis_signal(
             str(row.get("title") or "")
         ):
             continue
@@ -208,7 +212,7 @@ async def entries_for_patterns(db, authenticated_user_id: str, *, limit: int = 3
                 "title": row.get("title"),
                 "date": stamp.date().isoformat() if stamp else "",
                 "tags": tags,
-                "topics": topics_from(str(row.get("title") or ""), str(row.get("content") or ""), tags),
+                "topics": topics_from(str(row.get("title") or ""), body, tags),
                 "observed_at": stamp,
                 "source": "journal_entries",
             }

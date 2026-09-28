@@ -3,6 +3,8 @@ System prompt templates for the Zenark companion, the extraction
 pipeline, and the graph-tuple extraction pipeline.
 """
 
+PROMPT_VERSION = "2026.09.28"
+
 # ─────────────────────────────────────────────────────────────────────────────
 # Main companion system prompt
 # ─────────────────────────────────────────────────────────────────────────────
@@ -364,7 +366,10 @@ SYSTEM_PROMPT_DEFAULTS = {
     ),
     "graph_context": "No relational graph data available yet.",
     "adaptive_memory_context": "No adaptive psychological memory available.",
-    "pattern_context": "No longitudinal user patterns available for this turn.",
+    "pattern_context": (
+        "No longitudinal user patterns available for this turn. "
+        "No stored pattern was supplied. Do not mention a pattern."
+    ),
     "user_memory": "No prior session history available.",
     "recent_moods": "No mood logs recorded recently.",
     "sleep_context": "No sleep data available",

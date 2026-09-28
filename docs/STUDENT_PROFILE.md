@@ -29,3 +29,7 @@ The live crisis check overrides the profile. A stored "no crisis flag" line is n
 ## Security
 
 `POST /api/memory/consolidate` and `GET /api/memory/profile` use the authenticated user only. A client-supplied user id is not an owner.
+
+The frozen contract treats this collection as a **derived compact summary**, consent-gated, with source collections remaining the source of truth. It does **not** require the profile document to be Fernet-sealed, and this change does not invent that policy.
+
+Stored conversation snapshots use already-plaintext event labels and task titles. Sealed `session_reports` summaries are not copied, not decrypted into a new plaintext field, and not stored as `enc::` fragments. Raw chat and journal bodies are not copied. Owner APIs remain consent-gated.

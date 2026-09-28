@@ -303,7 +303,7 @@ Paginated roster: id, name, grade, latest percentage, severity, quadrant.
 
 ### GET /students/{student_id}/profile
 
-Identity, per-subject latest and delta, attendance, mood index, average sleep hours, risk band, pattern categories, and recent activity kinds (`mood_check_in`, `assessment`, `meditation_completed`, `sleep_log`) with timestamps. No note, journal, or conversation text. `concern_recorded` is a boolean.
+Identity, per-subject latest and delta, attendance, and assessment activity. School staff do not receive message content, journal text, mood or sleep series, pattern descriptions or confidence, psychological profile narrative, risk intensity, or a GDS value. Marks remain because they are school academic data. `concern_recorded` is only a boolean. School overview aggregates are a separate response and are not this student payload.
 
 ### GET /students/{student_id}/interventions
 

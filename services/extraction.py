@@ -58,6 +58,7 @@ async def run_background_extraction(
     reply: str,
     db: AsyncIOMotorDatabase,
     neo4j_driver=None,  # Deprecated backward-compat arg, ignored
+    incomplete: bool = False,
 ) -> None:
     """
     Orchestrate post-response metadata extraction for a conversation turn.
@@ -76,8 +77,8 @@ async def run_background_extraction(
         The original user message text (before PII anonymization).
     reply : str
         The AI companion's reply (action card markup already stripped).
-        Pass ``"[Streamed Response]"`` for SSE streaming paths where the
-        full reply is not available at schedule time.
+        Pass the completed assistant text. Incomplete streams must not call this
+        with a placeholder. ``[Streamed Response]`` is rejected and not extracted.
     db : AsyncIOMotorDatabase
         Motor database handle for MongoDB writes and graph tuple upserts.
     neo4j_driver : optional
@@ -90,6 +91,11 @@ async def run_background_extraction(
         internally and never propagated.
     """
     extraction = None
+    from services.safety_class import SafetyClass, classify_message
+
+    if incomplete or reply == "[Streamed Response]" or classify_message(message) is not SafetyClass.NONE:
+        logger.info("Extraction skipped user=%s", user_id)
+        return
 
     # ── Task 1: Insight extraction (emotions, themes, crisis) ─────────────────
     # Wrapped independently so a failure here does not prevent Task 2.
@@ -305,9 +311,12 @@ async def _persist_extraction(
         "user_id": user_id,
         "session_id": session_id,
         "created_at": datetime.now(timezone.utc),
-        # ``model_dump()`` serialises all Pydantic fields to a plain dict
         **extraction.model_dump(),
     }
+    from services.security import seal_text
+
+    if doc.get("insight_summary"):
+        doc["insight_summary"] = seal_text(doc["insight_summary"])
     await db["user_insights"].insert_one(doc)
     logger.info("Persisted extraction to user_insights for user=%s", user_id)
 
@@ -355,10 +364,9 @@ async def _handle_crisis_signal(
     """
     # Log at CRITICAL so this appears in alerting dashboards
     logger.critical(
-        "⚠️  CRISIS SIGNAL DETECTED — user=%s session=%s — summary: %s",
+        "CRISIS SIGNAL DETECTED — user=%s session=%s",
         user_id,
         session_id,
-        extraction.insight_summary,
     )
 
     # Set a crisis flag on the user document for staff visibility.

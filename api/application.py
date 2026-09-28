@@ -8,6 +8,7 @@ from fastapi.exceptions import RequestValidationError
 from api.router import build_api_router
 from config.config import get_settings, logger
 from core.exceptions import (
+    crypto_integrity_exception_handler,
     http_exception_handler,
     unhandled_exception_handler,
     validation_exception_handler,
@@ -22,7 +23,11 @@ from fastapi import HTTPException
 def create_app() -> FastAPI:
     settings = get_settings()
     configure_logging(settings.LOG_LEVEL)
+    from core.runtime_guard import assert_environment_secrets
+
+    assert_environment_secrets(settings)
     logger.info("Zenark API starting env=%s log_level=%s", settings.APP_ENV, settings.LOG_LEVEL)
+    hardened = settings.APP_ENV.lower() in {"production", "prod", "staging", "preprod"}
     application = FastAPI(
         title="Zenark API",
         description=(
@@ -31,12 +36,18 @@ def create_app() -> FastAPI:
         ),
         version="0.4.0",
         lifespan=lifespan,
+        docs_url=None if hardened else "/docs",
+        redoc_url=None if hardened else "/redoc",
+        openapi_url=None if hardened else "/openapi.json",
     )
     origins = [item.strip() for item in settings.CORS_ORIGINS.split(",") if item.strip()]
     hosts = [item.strip() for item in settings.TRUSTED_HOSTS.split(",") if item.strip()]
     install_middleware(application, cors_origins=origins, trusted_hosts=hosts)
     application.add_exception_handler(HTTPException, http_exception_handler)
     application.add_exception_handler(RequestValidationError, validation_exception_handler)
+    from services.security import CryptoIntegrityError
+
+    application.add_exception_handler(CryptoIntegrityError, crypto_integrity_exception_handler)
     application.add_exception_handler(Exception, unhandled_exception_handler)
     application.include_router(build_api_router(), dependencies=[Depends(enforce_rate_limit)])
     from api.routes.voice import psychiatrist_voice

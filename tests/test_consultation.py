@@ -122,29 +122,27 @@ async def test_two_heavy_reports_refer_once_and_then_cool_down():
 
     first = await evaluate_user_for_consultation(db, "stu_a", trigger="REPORT", actor="system", now=NOW)
     assert first["status"] == "REFERRED"
-    assert first["notification_written"] is True
-    assert len(db["consultation_notifications"].docs) == 1
-    assert db["consultation_notifications"].docs[0]["read"] is False
+    assert first["notification_written"] is False
+    assert db["consultation_notifications"].docs == []
 
     second = await evaluate_user_for_consultation(
         db, "stu_a", trigger="REPORT", actor="system", now=NOW + timedelta(days=10)
     )
     assert second["status"] == "REFERRED"
-    assert second["cooldown_active"] is True
     assert second["notification_written"] is False
-    assert len(db["consultation_notifications"].docs) == 1
+    assert db["consultation_notifications"].docs == []
 
     third = await evaluate_user_for_consultation(
         db, "stu_a", trigger="REPORT", actor="system", now=NOW + timedelta(days=31)
     )
-    # Reports have aged out of the lookback window: no new referral, no notification.
+    # Reports have aged out of the lookback window: no new referral, no page.
     assert third["status"] == "NOT_NEEDED"
-    assert len(db["consultation_notifications"].docs) == 1
+    assert db["consultation_notifications"].docs == []
 
     actions = [row["action"] for row in db["psychiatric_evaluation_audit"].docs]
     assert actions.count("EVALUATION_RUN") == 3
-    assert "NOTIFICATION_WRITTEN" in actions
-    assert "REFERRAL_SUPPRESSED_COOLDOWN" in actions
+    assert "NOTIFICATION_WRITTEN" not in actions
+    assert actions.count("REFERRAL_NOT_PAGED") == 2
     assert all(row["userId"] == "stu_a" for row in db["psychiatric_evaluations"].docs)
 
 
@@ -206,7 +204,34 @@ async def test_students_cannot_evaluate_others_but_staff_can():
     assert await target_user(db, "stu_a", "stu_a") == "stu_a"
     with pytest.raises(PermissionError):
         await target_user(db, "stu_a", "stu_b")
-    assert await target_user(db, "staff_1", "stu_b") == "stu_b"
+    with pytest.raises(PermissionError):
+        await target_user(db, "staff_1", "stu_b")
+    assert await target_user(db, "staff_1", None) == "staff_1"
+
+
+@pytest.mark.asyncio
+async def test_unassigned_staff_cannot_evaluate_another_user():
+    db = _db()
+    with pytest.raises(PermissionError):
+        await target_user(db, "staff_1", "stu_a")
+
+
+@pytest.mark.asyncio
+async def test_staff_cannot_evaluate_another_school():
+    db = _db()
+    db["users"].docs.append(
+        {"user_id": "counsel_river", "roles": ["counselor"], "school": "Riverdale School"}
+    )
+    db["users"].docs.append(
+        {"user_id": "stu_river", "roles": ["student"], "school": "Riverdale School"}
+    )
+    db["users"].docs.append(
+        {"user_id": "stu_harbor", "roles": ["student"], "school": "Harbor School"}
+    )
+    assert await target_user(db, "counsel_river", "stu_river") == "stu_river"
+    with pytest.raises(PermissionError):
+        await target_user(db, "counsel_river", "stu_harbor")
+
 
 
 @pytest.mark.asyncio

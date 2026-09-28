@@ -57,6 +57,7 @@ from motor.motor_asyncio import AsyncIOMotorDatabase
 
 from config.config import get_settings, logger
 from schemas import GraphTuple
+from services.security import open_text, seal_text
 
 # ── Allowed relationship types (whitelist for traversal safety) ───────────────
 _ALLOWED_RELATIONS = frozenset(
@@ -70,6 +71,28 @@ _ALLOWED_RELATIONS = frozenset(
         "PARTICIPATED_IN",
     ]
 )
+_REL_PROP_STR_MAX = 80
+
+
+def sanitize_relationship_properties(properties: Optional[Dict[str, Any]]) -> Dict[str, Any]:
+    """Keep structured edge metadata. Drop free-form narrative and ciphertext."""
+    if not isinstance(properties, dict):
+        return {}
+    cleaned: Dict[str, Any] = {}
+    intensity = properties.get("intensity")
+    if isinstance(intensity, bool):
+        intensity = None
+    if isinstance(intensity, (int, float)):
+        cleaned["intensity"] = intensity
+    for key in ("source_session_id", "source_message_id", "status"):
+        value = properties.get(key)
+        if not isinstance(value, str):
+            continue
+        text = " ".join(value.split())
+        if not text or text.startswith("enc::") or len(text) > _REL_PROP_STR_MAX:
+            continue
+        cleaned[key] = text
+    return cleaned
 
 # ── Node key property mapping (mirrors former Neo4j key map) ─────────────────
 # Used to pick the canonical "name" field for each node type.
@@ -313,7 +336,7 @@ async def upsert_node(
         "user_id": user_id,  # Always set — user isolation key
         "node_id": node_id,
         "node_type": node_type,
-        "name": name,
+        "name": seal_text(name),
         "properties": properties or {},
         "updated_at": now,
     }
@@ -405,7 +428,7 @@ async def upsert_relationship(
         "relation": relation,
         "to_node_id": to_node_id,
         "to_node_type": to_node_type,
-        "properties": properties or {},
+        "properties": sanitize_relationship_properties(properties),
         "updated_at": now,
     }
     await db["graph_relationships"].update_one(
@@ -601,7 +624,7 @@ def _format_graph_records(records: List[Dict[str, Any]]) -> str:
 
     for rec in records:
         target_type = rec.get("target_type", "")
-        target_name = rec.get("target_name") or "unknown"
+        target_name = open_text(str(rec.get("target_name") or "unknown"))
         relation = rec.get("relation", "")
         rel_props = rec.get("rel_props") or {}
         target_props = rec.get("target_props") or {}

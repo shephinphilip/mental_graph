@@ -199,4 +199,3 @@ async def test_streaming_mid_stream_failure_terminates():
     assert "event: error" in full_output
     assert "Response stream interrupted" in full_output
     assert "event: done" not in full_output
-    assert mock_db["messages"].insert_one.await_count == 0

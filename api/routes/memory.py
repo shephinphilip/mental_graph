@@ -14,8 +14,9 @@ from api.deps import authenticated_user_id
 from config.config import logger
 from database import get_db
 from schemas import APMFeedbackRequest, PersonalizationConsentRequest
+from services.consent_grants import set_grant
 from services.apm import delete_adaptive_memory, record_intervention_feedback
-from services.users import set_personalization_consent
+from services.erasure import start_erasure
 
 router = APIRouter(tags=["memory"])
 
@@ -26,9 +27,14 @@ async def update_memory_consent(
     user_id: str = Depends(authenticated_user_id),
     db: AsyncIOMotorDatabase = Depends(get_db),
 ):
-    if not await set_personalization_consent(db, user_id, payload.enabled):
-        raise HTTPException(status_code=404, detail="Active user not found")
-    return {"enabled": payload.enabled}
+    grant = await set_grant(
+        db,
+        user_id,
+        payload.purpose,
+        enabled=payload.enabled,
+        source=payload.source,
+    )
+    return {"enabled": grant["enabled"], "purpose": grant["purpose"]}
 
 
 @router.post("/memory/feedback")
@@ -55,6 +61,15 @@ async def intervention_feedback(
     except ValueError as exc:
         logger.warning("Memory feedback rejected: %s", exc)
         raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@router.post("/memory/erasure")
+async def erase_user_records(
+    user_id: str = Depends(authenticated_user_id),
+    db: AsyncIOMotorDatabase = Depends(get_db),
+):
+    """Idempotent erasure of this user's records. The job stores counts, not content."""
+    return await start_erasure(db, user_id)
 
 
 @router.delete("/memory")

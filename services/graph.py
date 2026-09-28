@@ -73,7 +73,7 @@ from services.action_cards import (
 )
 from services.apm import contains_crisis_signal
 from services.meditation.cards import ensure_single_meditation_card
-from services.patterns.window import evaluate_turn_risk, format_action_card_context
+from services.patterns.window import evaluate_turn_risk
 from services.apm import get_adaptive_memory_context
 from services.chat_history import (
     decrypt_message_doc,
@@ -84,6 +84,39 @@ from services.chat_history import (
 )
 from services.context import fetch_user_context
 from services.inner_council import deliberate as inner_council_deliberate
+from services.security import CryptoIntegrityError
+
+
+async def _record_turn_governance(db, *, user_id: str, risk_intensity: float, safety_class: str) -> dict:
+    """Shadow GDS and escalation. Failures must not block the reply."""
+    trajectory = "unknown"
+    try:
+        from services.trajectory import label_trajectory
+
+        cursor = db["user_risk_turns"].find({"user_id": user_id}).sort("created_at", -1).limit(3)
+        rows = await cursor.to_list(length=3)
+        trajectory = label_trajectory(list(reversed(rows)))
+    except Exception:
+        trajectory = "unknown"
+    try:
+        from services.gds import record_shadow
+
+        await record_shadow(db, user_id, risk_intensity=risk_intensity)
+    except Exception:
+        logger.info("GDS shadow skipped user=%s", user_id)
+    try:
+        from services.escalation import on_turn
+
+        return await on_turn(
+            db,
+            user_id,
+            risk_intensity=risk_intensity,
+            safety_class=safety_class,
+            trajectory=trajectory,
+        )
+    except Exception:
+        logger.info("Escalation record skipped user=%s", user_id)
+        return {"care_request": "", "delivery": "not_configured", "care_band": "UNMAPPED"}
 
 
 # ════════════════════════════════════════════════════════════════════════════
@@ -324,8 +357,8 @@ async def generate_node(state: ChatState) -> dict:
         opening_turn=bool(state.get("opening_turn")),
         risk_intensity_score=risk_decision.score.risk_intensity_score,
         persistent_distress=risk_decision.persistent_distress,
-        attach_psychiatrist_card=risk_decision.attach_psychiatrist_card,
-        action_card_context=risk_decision.action_card_context,
+        attach_psychiatrist_card=False,
+        action_card_context=None,
         background_context=boundary_background(
             state.get("graph_context") or "",
             context.get("adaptive_memory_context") or "",
@@ -359,9 +392,7 @@ async def generate_node(state: ChatState) -> dict:
             message_history=message_history,
         ),
         response_stance=council.as_prompt_block(),
-        action_card_context=format_action_card_context(
-            risk_decision.action_card_context
-        ),
+        action_card_context="",
     )
 
     # Assemble the full message list for the LLM
@@ -376,24 +407,78 @@ async def generate_node(state: ChatState) -> dict:
         # Silently skip any messages with unexpected roles
 
     # Append the current user turn (the message this graph invocation is responding to)
+    from services.security import anonymize_text
+
     current_user_message = state.get("user_message", "")
     if current_user_message:
-        raw_messages.append(HumanMessage(content=current_user_message))
+        raw_messages.append(HumanMessage(content=anonymize_text(current_user_message)))
     messages = sanitize_messages_for_bedrock(raw_messages)
 
     from integrations.resilience import resilient_ainvoke
+    from services.response_validator import (
+        FALLBACK_REPLY,
+        validate_reply,
+    )
+    from services.safety_class import SafetyClass, classify_message
+    from services.stepping_stone import choose_stepping_stone
 
     llm = get_llm()
     response = await resilient_ainvoke(llm, messages)
-
-    # Extract the text content; handle both message objects and raw strings
     raw_output = response.content if hasattr(response, "content") else str(response)
+    if not isinstance(raw_output, str):
+        raw_output = str(raw_output)
+    script = str(context.get("response_script") or "LATIN")
+    pattern_supplied = "USER PATTERN CONTEXT" in str(context.get("pattern_context") or "")
+    verdict = validate_reply(
+        raw_output, script=script, pattern_supplied=pattern_supplied
+    )
+    used_fallback = False
+    if not verdict.ok:
+        from langchain_core.messages import HumanMessage as RewriteMessage
+
+        retry_messages = messages + [
+            RewriteMessage(
+                content=(
+                    "Rewrite the previous reply. Remove the violation "
+                    f"({verdict.reason}). One question at most. "
+                    "No diagnosis and no claim that a session is available."
+                )
+            )
+        ]
+        retry = await resilient_ainvoke(llm, sanitize_messages_for_bedrock(retry_messages))
+        raw_output = retry.content if hasattr(retry, "content") else str(retry)
+        verdict = validate_reply(
+            raw_output, script=script, pattern_supplied=pattern_supplied
+        )
+        if not verdict.ok:
+            raw_output = FALLBACK_REPLY
+            used_fallback = True
+
+    label = classify_message(state.get("user_message", ""))
+    offer = await choose_stepping_stone(
+        state["db"],
+        user_id=state.get("user_id", ""),
+        message=state.get("user_message", ""),
+        opening_turn=bool(state.get("opening_turn")),
+        safety_class=label,
+    )
+    governance = await _record_turn_governance(
+        state["db"],
+        user_id=state.get("user_id", ""),
+        risk_intensity=risk_decision.score.risk_intensity_score,
+        safety_class=label.value,
+    )
 
     logger.info("LLM generation complete — %d chars", len(raw_output))
 
     return {
         "raw_llm_output": raw_output,
-        "attach_psychiatrist_card": risk_decision.attach_psychiatrist_card,
+        "suppress_cards": used_fallback or label is not SafetyClass.NONE,
+        "stepping_offer": offer,
+        "care_request": governance.get("care_request") or "",
+        "response_language": context.get("preferred_language") or "",
+        "response_script": script,
+        "attach_psychiatrist_card": False,
         "risk_assessment": {
             **risk_decision.score.as_dict(),
             "persistent_distress": risk_decision.persistent_distress,
@@ -448,23 +533,28 @@ async def format_output_node(state: ChatState) -> dict:
 
     # Step 1: Strip action card blocks from the raw LLM output
     clean_reply, action_cards = parse_action_cards(state["raw_llm_output"])
-    attach_apm_execution_metadata(action_cards, user_id)
-    risk = state.get("risk_assessment") or {}
-    action_cards = ensure_psychiatrist_card(
-        action_cards,
-        attach=bool(state.get("attach_psychiatrist_card")),
-        pattern_id=risk.get("pattern_id"),
-        trigger_reason=risk.get("trigger_reason") or "",
-    )
-    action_cards = ensure_single_meditation_card(
-        action_cards,
-        None,
-        suppress=True,
-    )
-    action_cards = suppress_ordinary_cards(
-        state.get("user_message", ""),
-        action_cards,
-    )
+    if state.get("suppress_cards"):
+        action_cards = []
+    else:
+        attach_apm_execution_metadata(action_cards, user_id)
+        risk = state.get("risk_assessment") or {}
+        action_cards = ensure_psychiatrist_card(
+            action_cards,
+            attach=bool(state.get("attach_psychiatrist_card")),
+            pattern_id=risk.get("pattern_id"),
+            trigger_reason=risk.get("trigger_reason") or "",
+            care_request=str(state.get("care_request") or ""),
+        )
+        offer = state.get("stepping_offer") or {}
+        action_cards = ensure_single_meditation_card(
+            action_cards,
+            offer.get("offer"),
+            suppress=offer.get("kind") != "meditation",
+        )
+        action_cards = suppress_ordinary_cards(
+            state.get("user_message", ""),
+            action_cards,
+        )
 
     # Step 2: Persist history as separate role-tagged records (idempotent).
     if state.get("opening_turn") and not state.get("persist_user_message", True):
@@ -474,8 +564,8 @@ async def format_output_node(state: ChatState) -> dict:
             user_id=user_id,
             session_id=session_id,
             content=clean_reply,
-            response_language=str(ctx.get("preferred_language") or ""),
-            response_script=str(ctx.get("response_script") or ""),
+            response_language=str(ctx.get("preferred_language") or state.get("response_language") or ""),
+            response_script=str(ctx.get("response_script") or state.get("response_script") or ""),
         )
     else:
         await persist_user_and_assistant(
@@ -484,6 +574,8 @@ async def format_output_node(state: ChatState) -> dict:
             session_id=session_id,
             user_message=state["user_message"],
             assistant_reply=clean_reply,
+            response_language=str(state.get("response_language") or ""),
+            response_script=str(state.get("response_script") or ""),
         )
 
     # Step 3: Log any action cards emitted in this turn for analytics/audit
@@ -660,10 +752,12 @@ async def run_chat_graph(
                 user_id,
                 session_id,
             )
+            from services.escalation import open_crisis_fast_track
             from services.language_preferences import crisis_message, resolve_response_language
 
+            await open_crisis_fast_track(db, user_id, session_id=session_id)
             crisis_card = build_crisis_support_card()
-            resolved = await resolve_response_language(db, user_id)
+            resolved = await resolve_response_language(db, user_id, user_message)
             crisis_reply = crisis_message(resolved["resolved_language"])
             try:
                 await persist_user_and_assistant(
@@ -672,7 +766,11 @@ async def run_chat_graph(
                     session_id=session_id,
                     user_message=user_message,
                     assistant_reply=crisis_reply,
+                    response_language=resolved["resolved_language"],
+                    response_script=resolved["resolved_script"],
                 )
+            except CryptoIntegrityError:
+                raise
             except Exception:
                 logger.exception(
                     "Failed to persist crisis fast-track for user=%s", user_id

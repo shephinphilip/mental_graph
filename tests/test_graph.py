@@ -74,7 +74,12 @@ async def test_basic_flow_no_action_cards():
     assert result["session_id"] == "sess_001"
     assert result["reply"] == llm_reply
     assert result["action_cards"] == []
-    assert mock_db["messages"].insert_one.call_count == 2
+    inserted = [
+        call.args[0]
+        for call in mock_db["messages"].insert_one.call_args_list
+        if call.args and isinstance(call.args[0], dict)
+    ]
+    assert [doc.get("role") for doc in inserted if doc.get("role")] == ["user", "assistant"]
 
 
 @pytest.mark.asyncio

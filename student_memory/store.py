@@ -9,8 +9,10 @@ from typing import Any, Dict, List, Optional
 from config.config import get_settings, logger
 from student_memory.indexes import COLLECTION
 from student_memory.models import CATEGORIES, normalize_facts
+from services.security import open_text, seal_text
 
 CONFIRM_BOOST = 0.08
+DERIVED_USER_MEMORY_FIELDS = ("memory_summary", "key_takeaways")
 
 
 def _as_dt(value: Any) -> Optional[datetime]:
@@ -68,7 +70,7 @@ async def upsert_facts(
             {
                 "memory_id": f"mem_{uuid.uuid4().hex[:12]}",
                 "user_id": user_id,
-                "fact": fact["fact"],
+                "fact": seal_text(fact["fact"]),
                 "key": fact["key"],
                 "category": fact["category"],
                 "importance": fact["importance"],
@@ -95,17 +97,25 @@ async def retrieve_facts(
     for row in rows:
         score = effective_importance(row, now=now)
         if score >= settings.MEMORY_MIN_IMPORTANCE:
-            scored.append({**row, "effective_importance": score})
+            scored.append({**row, "fact": open_text(str(row.get("fact") or "")), "effective_importance": score})
     scored.sort(key=lambda r: r["effective_importance"], reverse=True)
     return scored[:limit]
+
+
+async def clear_derived_user_memory(db, user_id: str) -> None:
+    """Drop plaintext projections. Facts stay on student_memories until deleted."""
+    await db["users"].update_one(
+        {"user_id": user_id},
+        {"$unset": {field: "" for field in DERIVED_USER_MEMORY_FIELDS}},
+    )
 
 
 async def consolidate_student_memory(
     db, user_id: str, *, now: Optional[datetime] = None
 ) -> Dict[str, Any]:
     """
-    Weekly or monthly job. Writes users.memory_summary and key_takeaways from
-    the strongest facts and archives facts that have faded.
+    Weekly or monthly job. Archives faded facts. Prompt text is rebuilt from
+    ``student_memories`` at read time — copies are not written onto ``users``.
     """
     settings = get_settings()
     now = now or datetime.now(timezone.utc)
@@ -128,28 +138,22 @@ async def consolidate_student_memory(
 
     by_category: Dict[str, List[str]] = {}
     for row in kept:
-        by_category.setdefault(row.get("category") or "OTHER", []).append(str(row.get("fact")))
+        by_category.setdefault(row.get("category") or "OTHER", []).append(open_text(str(row.get("fact") or "")))
     parts = []
     for category in CATEGORIES:
         facts = by_category.get(category)
         if facts:
             parts.append(f"{category.title()}: " + "; ".join(facts[:3]) + ".")
     summary = " ".join(parts)[:1500]
-    takeaways = [str(row.get("fact")) for row in kept[:5]]
-    if summary or takeaways:
-        await db["users"].update_one(
-            {"user_id": user_id},
-            {
-                "$set": {
-                    "memory_summary": summary,
-                    "key_takeaways": takeaways,
-                    "memory_consolidated_at": now,
-                }
-            },
-        )
+    await clear_derived_user_memory(db, user_id)
+    await db["users"].update_one(
+        {"user_id": user_id},
+        {"$set": {"memory_consolidated_at": now}},
+    )
     return {"kept": len(kept), "archived": archived, "summary_chars": len(summary)}
 
 
 async def delete_student_memory(db, user_id: str) -> int:
     result = await db[COLLECTION].delete_many({"user_id": user_id})
+    await clear_derived_user_memory(db, user_id)
     return int(getattr(result, "deleted_count", 0) or 0)

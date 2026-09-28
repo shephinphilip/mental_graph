@@ -8,6 +8,7 @@ from typing import Any, Dict, List
 from config.config import get_settings, logger
 from journaling.service import recent_entries
 from services.apm import contains_crisis_signal
+from services.security import open_text
 
 EMPTY_JOURNAL_CONTEXT = "No journal entries available."
 
@@ -30,7 +31,7 @@ def format_journal_context(entries: List[Dict[str, Any]]) -> str:
     settings = get_settings()
     usable = []
     for entry in entries:
-        if contains_crisis_signal(str(entry.get("content") or "")) or contains_crisis_signal(
+        if contains_crisis_signal(open_text(str(entry.get("content") or ""))) or contains_crisis_signal(
             str(entry.get("title") or "")
         ):
             continue
@@ -50,7 +51,7 @@ def format_journal_context(entries: List[Dict[str, Any]]) -> str:
             day = stamp.date().isoformat()
         else:
             day = "unknown date"
-        preview = _preview(str(entry.get("content") or ""), settings.JOURNAL_PREVIEW_CHARS)
+        preview = _preview(open_text(str(entry.get("content") or "")), settings.JOURNAL_PREVIEW_CHARS)
         lines.extend(
             [
                 f"- {day}",

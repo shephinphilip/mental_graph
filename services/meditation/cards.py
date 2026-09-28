@@ -45,6 +45,22 @@ def build_meditation_card(offer: Dict[str, Any]) -> ActionCard:
     )
 
 
+_PRACTICE_CARDS = {CardType.TOOL, CardType.HABIT, CardType.TASK, CardType.CONTENT}
+
+
+def _one_practice_card(cards: List[ActionCard]) -> List[ActionCard]:
+    """At most one habit, task, tool, or content card. Booking cards stay."""
+    seen = False
+    kept: List[ActionCard] = []
+    for card in cards:
+        if card.card_type in _PRACTICE_CARDS or _is_meditation(card):
+            if seen:
+                continue
+            seen = True
+        kept.append(card)
+    return kept
+
+
 def ensure_single_meditation_card(
     cards: List[ActionCard],
     offer: Optional[Dict[str, Any]],
@@ -59,14 +75,19 @@ def ensure_single_meditation_card(
     """
     kept = [card for card in cards if not _is_meditation(card)]
     if suppress or not offer or offer.get("decision") != "RECOMMEND_MEDITATION":
-        return kept
+        return _one_practice_card(kept)
     if any(
         (card.action_payload or {}).get("type") in {"CRISIS_SUPPORT", "PSYCHIATRIST_REFERRAL"}
         or card.card_id in {"card_crisis_support_v1", "card_psychiatrist_v1"}
         for card in kept
     ):
-        return kept
-    return kept + [build_meditation_card(offer)]
+        return [
+            card
+            for card in kept
+            if card.card_type not in _PRACTICE_CARDS and not _is_meditation(card)
+        ]
+    protected = [card for card in kept if card.card_type not in _PRACTICE_CARDS]
+    return protected + [build_meditation_card(offer)]
 
 
 def user_visible_fields(card: Dict[str, Any]) -> Dict[str, Any]:

@@ -61,15 +61,6 @@ def seed() -> None:
             "chief_concern": "JEE pressure and slipping Physics scores",
             "board": "CBSE",
             "school_board": "CBSE",
-            "memory_summary": (
-                "Aarav is in Class 12, aiming for JEE. He has talked about sleep "
-                "shrinking around mocks and feeling he is letting his parents down."
-            ),
-            "key_takeaways": [
-                "Physics mocks have been sliding while Chemistry is steadier.",
-                "Names his mother when talking about expectation.",
-                "Uses late-night YouTube 'productivity' videos instead of sleeping.",
-            ],
         },
         {
             "user_id": "stu_meera_002",
@@ -90,14 +81,6 @@ def seed() -> None:
             "chief_concern": "Board exam anxiety with improving but uneven English",
             "board": "ICSE",
             "school_board": "ICSE",
-            "memory_summary": (
-                "Meera is in Class 10 ICSE. She worries about 'first boards' and "
-                "compares herself to a cousin who scored 96%."
-            ),
-            "key_takeaways": [
-                "Maths is a relative strength.",
-                "Friendship group is protective; one teacher (Ms Rao) is a safe adult.",
-            ],
         },
         {
             "user_id": "stu_kabir_003",
@@ -118,18 +101,15 @@ def seed() -> None:
             "chief_concern": "Attendance dips around tests; family vs arts interest",
             "board": "UP Board",
             "school_board": "UP Board",
-            "memory_summary": (
-                "Kabir is in Class 11. He is pulled between family pressure toward "
-                "engineering and a quieter interest in history and writing."
-            ),
-            "key_takeaways": [
-                "Hindi and History hold up; Maths tests spike his avoidance.",
-            ],
         },
     ]
 
     for user in users:
-        db["users"].update_one({"email": user["email"]}, {"$set": user}, upsert=True)
+        db["users"].update_one(
+            {"email": user["email"]},
+            {"$set": user, "$unset": {"memory_summary": "", "key_takeaways": ""}},
+            upsert=True,
+        )
 
     marks_docs = [
         # Aarav — declining Physics, mixed overall (JEE mock path)

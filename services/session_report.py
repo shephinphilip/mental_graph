@@ -270,12 +270,23 @@ async def generate_session_report(db, *, user_id: str, session_id: str) -> Dict[
     }
     doc["tasks"] = reading["proposed_tasks"]
     doc["task_persistence"] = reading["task_persistence"]
+    from services.security import CryptoIntegrityError, seal_text
+
+    stored = {
+        **doc,
+        "summary": seal_text(summary) if summary else summary,
+        "psychiatric_summary": seal_text(reading["psychiatric_summary"])
+        if reading.get("psychiatric_summary")
+        else reading.get("psychiatric_summary"),
+    }
     try:
         await db[REPORTS].update_one(
             {"user_id": user_id, "session_id": session_id},
-            {"$set": doc},
+            {"$set": stored},
             upsert=True,
         )
+    except CryptoIntegrityError:
+        raise
     except Exception:
         logger.exception("Could not store session report for user=%s", user_id)
 
@@ -287,6 +298,8 @@ async def generate_session_report(db, *, user_id: str, session_id: str) -> Dict[
 
             if await personalization_enabled(db, user_id):
                 memory_result = await upsert_facts(db, user_id, session_id, parsed.get("facts"))
+        except CryptoIntegrityError:
+            raise
         except Exception:
             logger.exception("Student memory write failed for user=%s", user_id)
 

@@ -61,6 +61,23 @@ def _join(value: Any) -> str:
     return str(value)
 
 
+def _plain_label(value: Any) -> str:
+    text = str(value or "").strip()
+    if not text or text.startswith("enc::"):
+        return ""
+    return text
+
+
+def _structured_session_concern(report: Dict[str, Any]) -> str:
+    """Use already-plaintext event labels. Never copy sealed report summaries."""
+    for event in report.get("events") or []:
+        if isinstance(event, dict):
+            label = _plain_label(event.get("label"))
+            if label:
+                return label[:180]
+    return ""
+
+
 def _blank_score() -> Dict[str, Any]:
     return {
         "score": None,
@@ -154,7 +171,9 @@ def _topics(values: Iterable[Any]) -> List[str]:
         if isinstance(value, (list, tuple)):
             found.extend(_topics(value))
         elif value not in (None, ""):
-            found.append(str(value).strip().lower())
+            label = _plain_label(value)
+            if label:
+                found.append(label.lower())
     return found
 
 
@@ -342,7 +361,7 @@ def assemble_profile(
             "This describes the logs. It does not explain why."
         )
 
-    mood_labels = [str(row.get("mood")) for row in journal_rows if row.get("mood")]
+    mood_labels = [label for row in journal_rows if (label := _plain_label(row.get("mood")))]
     journal_block = {
         "journal_summary": "",
         "journal_mood_pattern": "",
@@ -396,7 +415,7 @@ def assemble_profile(
     if isinstance(attendance_value, dict):
         raw_pct = attendance_value.get("percentage", attendance_value.get("attendance_percentage"))
         attendance_pct = float(raw_pct) if isinstance(raw_pct, (int, float)) else None
-        absence_reason = str(attendance_value.get("recent_absence_reason") or "")
+        absence_reason = _plain_label(attendance_value.get("recent_absence_reason") or "")
     attendance = {
         "attendance_percentage": attendance_pct,
         "attendance_trend": "insufficient_data",
@@ -461,28 +480,27 @@ def assemble_profile(
     topic_labels: List[str] = []
     for report in recent:
         events = [event for event in (report.get("events") or []) if isinstance(event, dict)]
-        labels = [str(event.get("label")) for event in events if event.get("label")]
+        labels = [label for event in events if (label := _plain_label(event.get("label")))]
         topic_labels.extend(labels)
         for event in events:
-            label = str(event.get("label") or "")
+            label = _plain_label(event.get("label"))
             if not label:
                 continue
             if event.get("resolved") is True:
                 resolved.append(label)
             elif event.get("resolved") is False:
                 unresolved.append(label)
-        concern = str(report.get("psychiatric_summary") or report.get("summary") or "").strip()
         snapshots.append(
             {
                 "session_id": str(report.get("session_id") or ""),
                 "date": report.get("created_at"),
-                "main_concern": concern[:180],
+                "main_concern": _structured_session_concern(report),
                 "emotional_state": "",
                 "important_topics": labels[:6],
                 "actions_discussed": [
-                    str(task.get("title"))
+                    title
                     for task in (report.get("proposed_tasks") or report.get("tasks") or [])
-                    if isinstance(task, dict) and task.get("title")
+                    if isinstance(task, dict) and (title := _plain_label(task.get("title")))
                 ][:4],
                 "outcome": "",
                 "risk_signal": "crisis_flag" if report.get("crisis_signal") else "",
@@ -506,12 +524,17 @@ def assemble_profile(
             "Recurring topics across stored session readings: " + ", ".join(recurring_topics[:6]) + "."
         )
 
-    pending = [str(row.get("title")) for row in tasks if row.get("incomplete") and row.get("title")]
+    pending = [
+        title
+        for row in tasks
+        if row.get("incomplete") and (title := _plain_label(row.get("title")))
+    ]
     finished = [row for row in tasks if row.get("pending") == 0]
     active_habits = [
-        str(row.get("title"))
+        title
         for row in habits
-        if str(row.get("value") or row.get("status") or "").lower() == "active" and row.get("title")
+        if str(row.get("value") or row.get("status") or "").lower() == "active"
+        and (title := _plain_label(row.get("title")))
     ]
     tasks_block = {
         "active_tasks": pending[:8],
@@ -519,9 +542,10 @@ def assemble_profile(
         "habit_patterns": "",
         "helpful_habits": [],
         "struggling_habits": [
-            str(row.get("title"))
+            title
             for row in habits
-            if str(row.get("value") or "").lower() in {"struggling", "paused"} and row.get("title")
+            if str(row.get("value") or "").lower() in {"struggling", "paused"}
+            and (title := _plain_label(row.get("title")))
         ],
     }
     if tasks:

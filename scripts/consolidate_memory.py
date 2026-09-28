@@ -6,8 +6,9 @@ Run from cron or a scheduler:
     python scripts/consolidate_memory.py            # every user with facts
     python scripts/consolidate_memory.py usr_abc    # one user
 
-Reads student_memories, archives faded facts, and rewrites
-users.memory_summary and users.key_takeaways from the strongest ones.
+Reads student_memories, archives faded facts, and clears leftover
+users.memory_summary / users.key_takeaways copies. Prompt facts are
+rebuilt from student_memories.
 """
 
 from __future__ import annotations

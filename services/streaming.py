@@ -66,7 +66,7 @@ from services.action_cards import (
     parse_action_cards,
 )
 from services.meditation.cards import ensure_single_meditation_card
-from services.patterns.window import evaluate_turn_risk, format_action_card_context
+from services.patterns.window import evaluate_turn_risk
 from services.apm import contains_crisis_signal, get_adaptive_memory_context
 from services.chat_history import (
     decrypt_message_doc,
@@ -76,7 +76,7 @@ from services.chat_history import (
 )
 from services.context import fetch_user_context
 from services.inner_council import deliberate as inner_council_deliberate
-from services.security import anonymize_text, decrypt_payload
+from services.security import CryptoIntegrityError, anonymize_text, decrypt_payload
 
 
 def _extract_token_text(chunk) -> str:
@@ -148,9 +148,11 @@ async def stream_chat_graph(
             session_id,
         )
 
+        from services.escalation import open_crisis_fast_track
         from services.language_preferences import crisis_message, resolve_response_language
 
-        resolved = await resolve_response_language(db, user_id)
+        await open_crisis_fast_track(db, user_id, session_id=session_id)
+        resolved = await resolve_response_language(db, user_id, user_message)
         crisis_reply = crisis_message(resolved["resolved_language"])
         crisis_data = {
             "title": "Immediate Support Available",
@@ -194,6 +196,8 @@ async def stream_chat_graph(
                 session_id=session_id,
                 user_message=user_message,
                 assistant_reply=crisis_data["message"],
+                response_language=resolved["resolved_language"],
+                response_script=resolved["resolved_script"],
             )
         except Exception:
             logger.exception(
@@ -269,8 +273,8 @@ async def stream_chat_graph(
             opening_turn=False,
             risk_intensity_score=risk_decision.score.risk_intensity_score,
             persistent_distress=risk_decision.persistent_distress,
-            attach_psychiatrist_card=risk_decision.attach_psychiatrist_card,
-            action_card_context=risk_decision.action_card_context,
+            attach_psychiatrist_card=False,
+            action_card_context=None,
             background_context=boundary_background(
                 graph_context,
                 user_context.get("adaptive_memory_context") or "",
@@ -280,9 +284,7 @@ async def stream_chat_graph(
                 user_context.get("task_context") or "",
             ),
         ).as_prompt_block(),
-        action_card_context=format_action_card_context(
-            risk_decision.action_card_context
-        ),
+        action_card_context="",
     )
 
     raw_messages = [SystemMessage(content=formatted_system)]
@@ -348,27 +350,100 @@ async def stream_chat_graph(
                 yield f"event: error\ndata: {json.dumps(payload)}\n\n"
                 return
         else:
-            # Never stitch providers after visible output. Do not persist the
-            # partial assistant response; the client can safely offer retry.
+            # Visible output already left the socket. Store it as incomplete
+            # and do not run extraction or treat it as a finished answer.
             payload = {
                 "error": "Response stream interrupted",
                 "retryable": True,
             }
             yield f"event: error\ndata: {json.dumps(payload)}\n\n"
+            try:
+                await persist_user_and_assistant(
+                    db,
+                    user_id=user_id,
+                    session_id=session_id,
+                    user_message=user_message,
+                    assistant_reply="".join(full_response_chunks),
+                    incomplete=True,
+                )
+            except Exception:
+                logger.exception("Failed to mark incomplete stream user=%s", user_id)
             return
 
     # ── Step 6: Post-processing — Action Card Parsing ─────────────────────────
     full_text = "".join(full_response_chunks)
-    clean_reply, cards = parse_action_cards(full_text)
-    attach_apm_execution_metadata(cards, user_id)
-    cards = ensure_psychiatrist_card(
-        cards,
-        attach=risk_decision.attach_psychiatrist_card,
-        pattern_id=risk_decision.pattern_id,
-        trigger_reason=risk_decision.trigger_reason,
+    from services.graph import _record_turn_governance
+    from services.safety_class import SafetyClass, classify_message
+
+    label = classify_message(user_message)
+    governance = await _record_turn_governance(
+        db,
+        user_id=user_id,
+        risk_intensity=risk_decision.score.risk_intensity_score,
+        safety_class=label.value,
     )
-    cards = ensure_single_meditation_card(cards, None, suppress=True)
-    cards = suppress_ordinary_cards(user_message, cards)
+    care_request = str(governance.get("care_request") or "")
+    clean_reply, cards = parse_action_cards(full_text)
+    from services.response_validator import FALLBACK_REPLY, validate_reply
+    from services.stepping_stone import choose_stepping_stone
+
+    script = str(user_context.get("response_script") or "LATIN")
+    pattern_supplied = "USER PATTERN CONTEXT" in str(user_context.get("pattern_context") or "")
+    verdict = validate_reply(clean_reply, script=script, pattern_supplied=pattern_supplied)
+    if not verdict.ok:
+        try:
+            from integrations.resilience import resilient_ainvoke
+
+            retry = await resilient_ainvoke(
+                get_primary_llm(),
+                sanitize_messages_for_bedrock(
+                    messages
+                    + [
+                        HumanMessage(
+                            content=(
+                                "Rewrite the previous reply. Remove the violation "
+                                f"({verdict.reason}). One question at most."
+                            )
+                        )
+                    ]
+                ),
+            )
+            retried = retry.content if hasattr(retry, "content") else str(retry)
+            verdict = validate_reply(retried, script=script, pattern_supplied=pattern_supplied)
+            clean_reply = retried if verdict.ok else FALLBACK_REPLY
+        except Exception:
+            clean_reply = FALLBACK_REPLY
+            verdict = validate_reply(clean_reply, script=script, pattern_supplied=pattern_supplied)
+        if not verdict.ok:
+            clean_reply = FALLBACK_REPLY
+        cards = []
+        yield f"event: correction\ndata: {json.dumps({'reply': clean_reply})}\n\n"
+    else:
+        label = classify_message(user_message)
+        if label is not SafetyClass.NONE:
+            cards = []
+        else:
+            attach_apm_execution_metadata(cards, user_id)
+            cards = ensure_psychiatrist_card(
+                cards,
+                attach=False,
+                pattern_id=risk_decision.pattern_id,
+                trigger_reason=risk_decision.trigger_reason,
+                care_request=care_request,
+            )
+            offer = await choose_stepping_stone(
+                db,
+                user_id=user_id,
+                message=user_message,
+                opening_turn=False,
+                safety_class=label,
+            )
+            cards = ensure_single_meditation_card(
+                cards,
+                offer.get("offer"),
+                suppress=offer.get("kind") != "meditation",
+            )
+            cards = suppress_ordinary_cards(user_message, cards)
 
     if cards:
         for card in cards:
@@ -400,7 +475,20 @@ async def stream_chat_graph(
             session_id=session_id,
             user_message=user_message,
             assistant_reply=clean_reply,
+            response_language=str(user_context.get("preferred_language") or ""),
+            response_script=str(user_context.get("response_script") or ""),
         )
+        from services.extraction import run_background_extraction
+
+        await run_background_extraction(
+            user_id=user_id,
+            session_id=session_id,
+            message=user_message,
+            reply=clean_reply,
+            db=db,
+        )
+    except CryptoIntegrityError:
+        raise
     except Exception:
         logger.exception(
             "Failed to persist streamed messages for user=%s session=%s",

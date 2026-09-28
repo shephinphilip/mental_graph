@@ -5,6 +5,7 @@ from __future__ import annotations
 from typing import Any, Dict, List
 
 from config.config import logger
+from services.security import open_text
 
 EMPTY = (
     "No previous session report. This is the first conversation on file. "
@@ -24,7 +25,7 @@ def format_prior_reports(reports: List[Dict[str, Any]]) -> str:
     ]
     open_count = 0
     for report in reports:
-        summary = str(report.get("psychiatric_summary") or report.get("summary") or "").strip()
+        summary = open_text(str(report.get("psychiatric_summary") or report.get("summary") or "")).strip()
         metric = report.get("psychiatric_metric")
         lines = []
         if summary:

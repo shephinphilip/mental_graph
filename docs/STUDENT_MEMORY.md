@@ -17,6 +17,8 @@ memory_id, user_id, fact, key, category, importance, source_sessions,
 archived, created_at, last_confirmed_at
 ```
 
+`fact` is sealed at rest. Prompt context is rebuilt from `student_memories` at read time (`retrieve_facts` / `build_memory_context`). `users.memory_summary` and `users.key_takeaways` are not written. Leftover copies are `$unset` on consolidate, `DELETE /api/memory`, and erasure. See `docs/ENCRYPTION_DATA_MATRIX.md`.
+
 A fact seen again is confirmed: importance rises a little and the session is added to `source_sessions`. It is not inserted twice.
 
 ## Decay and retrieval
@@ -25,7 +27,7 @@ Effective importance is stored importance minus `MEMORY_DECAY_PER_DAY` per day s
 
 ## Consolidation
 
-`consolidate_student_memory()` archives faded facts and rewrites `users.memory_summary` and `users.key_takeaways` from the strongest ones. Run it weekly or monthly:
+`consolidate_student_memory()` archives faded facts and `$unset`s leftover `users.memory_summary` / `users.key_takeaways`. Prompt facts stay on `student_memories`. Run it weekly or monthly:
 
 ```
 python scripts/consolidate_memory.py           # all users with facts

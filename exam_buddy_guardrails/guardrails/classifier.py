@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import re
 
-from services.apm import contains_crisis_signal
+from services.safety_class import SafetyClass, classify_message
 
 from exam_buddy_guardrails.models import RequestCategory
 
@@ -46,7 +46,7 @@ def classify_request(text: str) -> RequestCategory:
     raw = (text or "").strip()
     if len(raw) < 3:
         return RequestCategory.UNCLEAR
-    if contains_crisis_signal(raw):
+    if classify_message(raw) is not SafetyClass.NONE:
         return RequestCategory.UNSAFE
 
     academic = bool(_ACADEMIC_TASK.search(raw)) or (

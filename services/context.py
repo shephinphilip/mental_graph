@@ -40,6 +40,7 @@ from motor.motor_asyncio import AsyncIOMotorDatabase
 
 from config.config import get_settings, logger
 from services.marks import academic_context_for_turn
+from services.security import open_text
 from services.users import get_by_identifier
 
 
@@ -125,7 +126,10 @@ async def fetch_user_context(
     if marks_block:
         profile_fields["academic_context"] = marks_block
 
-    pattern_context = "No longitudinal user patterns available for this turn."
+    pattern_context = (
+        "No longitudinal user patterns available for this turn. "
+        "No stored pattern was supplied. Do not mention a pattern."
+    )
     try:
         from services.patterns import get_pattern_context
 
@@ -242,59 +246,13 @@ async def fetch_user_context(
 
 async def _fetch_user_memory(db: AsyncIOMotorDatabase, user_id: str) -> str:
     """
-    Load the user's narrative memory summary and key takeaways.
+    Placeholder for the users-document memory block.
 
-    Queries the ``users`` collection for a single document matching
-    ``user_id``.  Returns a formatted multi-line string, or a fallback
-    message if the user has no stored memory yet.
-
-    The ``users`` document is expected to have the optional fields:
-    - ``memory_summary`` : str  — a short paragraph summarising the user's
-      journey so far (written by the memory management pipeline)
-    - ``key_takeaways``  : list[str] or str — bullet points from past sessions
-
-    Parameters
-    ----------
-    db : AsyncIOMotorDatabase
-        The Motor async database handle.
-    user_id : str
-        The unique user identifier.
-
-    Returns
-    -------
-    str
-        Formatted memory string ready for LLM prompt injection.
-        Returns ``"No prior session history available."`` if the user
-        document does not exist or has no memory fields set.
-
-    Raises
-    ------
-    motor errors
-        Propagated to the caller if the MongoDB query fails.
+    Sealed facts live in ``student_memories`` and are injected later via
+    ``build_memory_context``. Copies are not read from ``users.memory_summary``
+    or ``users.key_takeaways``.
     """
-    # Only fetch the fields we need — avoids pulling large documents
-    user_doc = await get_by_identifier(db, user_id)
-
-    # No user document yet (first-time user or new session)
-    if not user_doc:
-        return "No prior session history available."
-
-    parts: List[str] = []
-
-    # Append the narrative summary paragraph if it exists
-    if summary := user_doc.get("memory_summary"):
-        parts.append(summary)
-
-    # Append key takeaways as bullet points
-    if takeaways := user_doc.get("key_takeaways"):
-        if isinstance(takeaways, list):
-            # Each takeaway becomes a bullet point
-            parts.extend(f"• {t}" for t in takeaways)
-        else:
-            # Scalar string (legacy format) — append as-is
-            parts.append(str(takeaways))
-
-    return "\n".join(parts) if parts else "No prior session history available."
+    return "No prior session history available."
 
 
 async def _fetch_recent_moods(
@@ -351,7 +309,7 @@ async def _fetch_recent_moods(
 
         mood = doc.get("mood", "—")
         score = doc.get("score", "")
-        note = doc.get("note", "")
+        note = open_text(str(doc.get("note") or ""))
 
         # Build the entry string incrementally
         entry = f"{date_str}: {mood}"

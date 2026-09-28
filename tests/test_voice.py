@@ -120,7 +120,7 @@ def test_stt_returns_text_and_does_not_chat(transcribe):
 
 @patch("api.routes.voice.transcribe_audio", new_callable=AsyncMock)
 def test_stt_never_echoes_api_key(transcribe, monkeypatch):
-    monkeypatch.setattr(get_settings(), "SARVAM_API_KEY")
+    monkeypatch.setattr(get_settings(), "SARVAM_API_KEY", "super-secret-sarvam-key")
     transcribe.return_value = {"success": True, "text": "hello"}
     client, _ = _client()
     response = client.post(

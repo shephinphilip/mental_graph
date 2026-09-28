@@ -8,7 +8,8 @@ from langchain_core.messages import HumanMessage, SystemMessage
 
 from integrations.resilience import resilient_ainvoke
 from llm_provider import get_llm, sanitize_messages_for_bedrock
-from services.apm import contains_crisis_signal, personalization_enabled
+from services.apm import personalization_enabled
+from services.safety_class import SafetyClass, classify_message
 
 from exam_buddy_guardrails.guardrails.input_guardrail import screen_input
 from exam_buddy_guardrails.guardrails.output_guardrail import apply_output_guardrail
@@ -45,7 +46,9 @@ def _reply_text(response: Any) -> str:
 
 async def remember_learning_turn(db, user_id: str, message: str) -> None:
     """Background write. Consent and crisis are checked again here."""
-    if contains_crisis_signal(message):
+    from services.safety_class import SafetyClass, classify_message
+
+    if classify_message(message) is not SafetyClass.NONE:
         return
     if not await personalization_enabled(db, user_id):
         return
@@ -60,6 +63,10 @@ async def handle_exam_buddy_turn(
 ) -> ExamBuddyTurn:
     """Run the academic path for the authenticated user id only."""
     category = screen_input(message)
+    if classify_message(message) is SafetyClass.CRISIS_KEYWORD:
+        from services.escalation import open_crisis_fast_track
+
+        await open_crisis_fast_track(db, user_id)
     if category is RequestCategory.UNSAFE:
         return ExamBuddyTurn(
             category=category,
@@ -90,13 +97,18 @@ async def handle_exam_buddy_turn(
         lines = render_memory_lines(memories)
 
     prompt = exam_buddy_system_prompt(memory_context_block(lines))
+    from services.language_preferences import language_instruction, resolve_response_language
+    from services.security import anonymize_text
+
+    resolved = await resolve_response_language(db, user_id, message)
+    prompt = prompt + "\n\n" + language_instruction(resolved)
     messages = sanitize_messages_for_bedrock(
-        [SystemMessage(content=prompt), HumanMessage(content=message)]
+        [SystemMessage(content=prompt), HumanMessage(content=anonymize_text(message))]
     )
     response = await resilient_ainvoke(get_llm(), messages)
     reply = apply_output_guardrail(_reply_text(response))
 
-    if allowed and background_tasks is not None and not contains_crisis_signal(message):
+    if allowed and background_tasks is not None and classify_message(message) is SafetyClass.NONE:
         background_tasks.add_task(remember_learning_turn, db, user_id, message)
 
     return ExamBuddyTurn(

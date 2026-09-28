@@ -94,6 +94,63 @@ def test_cross_user_chat_is_403():
     assert response.json()["error"]["code"] == "FORBIDDEN"
 
 
+def test_chat_message_length_is_validated():
+    from schemas import MAX_CHAT_MESSAGE_CHARS
+
+    fake = _db()
+    app.dependency_overrides[get_db] = lambda: fake
+    mongo = MagicMock()
+    mongo.admin.command = AsyncMock(return_value={"ok": 1})
+    headers = _auth("user_a")
+    with patch("database.create_mongo_client", return_value=mongo), patch(
+        "database.ensure_all_indexes", new_callable=AsyncMock
+    ), patch("api.routes.chat.run_chat_graph", new_callable=AsyncMock) as chat:
+        chat.return_value = {"session_id": "s1", "reply": "ok", "action_cards": []}
+        client = TestClient(app, raise_server_exceptions=False)
+
+        empty = client.post(
+            "/chat/send",
+            headers=headers,
+            json={"user_id": "user_a", "session_id": "s1", "message": ""},
+        )
+        assert empty.status_code == 400
+        assert empty.json()["error"]["code"] == "INVALID_REQUEST"
+        assert empty.json()["detail"] == "Invalid request."
+
+        normal = client.post(
+            "/chat/send",
+            headers=headers,
+            json={"user_id": "user_a", "session_id": "s1", "message": "hi"},
+        )
+        assert normal.status_code == 200
+
+        at_limit = client.post(
+            "/chat/send",
+            headers=headers,
+            json={
+                "user_id": "user_a",
+                "session_id": "s1",
+                "message": "h" * MAX_CHAT_MESSAGE_CHARS,
+            },
+        )
+        assert at_limit.status_code == 200
+
+        over = client.post(
+            "/chat/send",
+            headers=headers,
+            json={
+                "user_id": "user_a",
+                "session_id": "s1",
+                "message": "h" * (MAX_CHAT_MESSAGE_CHARS + 1),
+            },
+        )
+        assert over.status_code == 400
+        assert over.json()["success"] is False
+        assert over.json()["error"]["code"] == "INVALID_REQUEST"
+        assert over.headers.get("X-Request-ID")
+        assert chat.call_count == 2
+
+
 def test_v1_mood_uses_the_same_handler():
     client, _ = _client()
     response = client.post(

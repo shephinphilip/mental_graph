@@ -22,6 +22,7 @@ from schemas import (
 )
 from services.extraction import run_background_extraction
 from services.graph import run_chat_graph
+from services.security import CryptoIntegrityError
 from services.session_resume import resume_user_session
 
 router = APIRouter(tags=["chat"])
@@ -111,6 +112,8 @@ async def welcome_message(
                 response_script=resolved["resolved_script"],
             )
         return response_data
+    except CryptoIntegrityError:
+        raise
     except Exception as exc:
         logger.exception("Welcome turn failed for user=%s: %s", payload.user_id, exc)
         raise HTTPException(status_code=500, detail=str(exc))
@@ -154,6 +157,8 @@ async def send_message(
 
         return response_data
 
+    except CryptoIntegrityError:
+        raise
     except Exception as exc:
         logger.exception(
             "Unhandled error in /chat/send for user=%s session=%s: %s",
@@ -177,6 +182,8 @@ async def resume_session(
     assert_owner(user_id, authenticated_id)
     try:
         return await resume_user_session(db, user_id, session_id)
+    except CryptoIntegrityError:
+        raise
     except Exception as exc:
         logger.exception(
             "Session resumption failed for user=%s session=%s: %s",

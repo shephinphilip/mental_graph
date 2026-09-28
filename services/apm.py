@@ -410,17 +410,8 @@ async def record_intervention_feedback(
     if not claimed:
         return False
 
-    measured_delta = (
-        after_state - before_state
-        if before_state is not None and after_state is not None
-        else None
-    )
-    success = event_type == "HELPFUL" or (
-        event_type == "COMPLETED" and measured_delta is not None and measured_delta >= 0.15
-    )
-    failure = event_type == "NOT_HELPFUL" or (
-        event_type == "COMPLETED" and measured_delta is not None and measured_delta <= -0.05
-    )
+    success = event_type == "HELPFUL"
+    failure = event_type == "NOT_HELPFUL"
     execution_inc = 1 if event_type == "STARTED" else 0
     completion_inc = 1 if event_type == "COMPLETED" else 0
     success_inc = 1 if success else 0

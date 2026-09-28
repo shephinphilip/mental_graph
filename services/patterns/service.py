@@ -22,7 +22,10 @@ from services.patterns.store import (
     upsert_pattern,
 )
 
-EMPTY_PATTERN_CONTEXT = "No longitudinal user patterns available for this turn."
+EMPTY_PATTERN_CONTEXT = (
+    "No longitudinal user patterns available for this turn. "
+    "No stored pattern was supplied. Do not mention a pattern."
+)
 
 
 async def get_pattern_context(
@@ -37,11 +40,15 @@ async def get_pattern_context(
     context so chat is never blocked.
     """
     try:
-        if contains_crisis_signal(user_message or ""):
+        from services.safety_class import SafetyClass, classify_message
+
+        if classify_message(user_message or "") is not SafetyClass.NONE:
             return EMPTY_PATTERN_CONTEXT
         if not await personalization_enabled(db, user_id):
             return EMPTY_PATTERN_CONTEXT
-        patterns = await retrieve_relevant_patterns(db, user_id, user_message)
+        patterns = await retrieve_relevant_patterns(
+            db, user_id, user_message, max_patterns=1
+        )
         return format_pattern_context(patterns)
     except Exception:
         logger.exception("Pattern retrieval failed for user=%s", user_id)

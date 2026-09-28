@@ -10,11 +10,6 @@ from dashboard.identity import clean_token, same_school
 from dashboard.metrics import (
     ASSIGNMENT_REASON,
     ATTENDANCE_REASON,
-    is_number,
-    mean,
-    mental_index,
-    risk_for_student,
-    sleep_hours,
     summarize_student_marks,
     trend_label,
 )
@@ -51,17 +46,9 @@ async def require_student(db, actor, student_id: str) -> dict:
 
 def _activity(signals: dict) -> list[dict]:
     events = []
-    for row in signals["moods"][:1]:
-        events.append({"kind": "mood_check_in", "at": isoformat(row.get("logged_at") or row.get("created_at"))})
     if signals["marks"]:
         last = signals["marks"][-1]
         events.append({"kind": "assessment", "at": isoformat(last.get("exam_date")), "subject": last.get("subject")})
-    for row in signals["meditations"]:
-        if str(row.get("status") or "").upper() == "COMPLETED":
-            events.append({"kind": "meditation_completed", "at": isoformat(row.get("completed_at"))})
-            break
-    for row in signals["sleep"][:1]:
-        events.append({"kind": "sleep_log", "at": isoformat(row.get("created_at") or row.get("date"))})
     return [event for event in events if event.get("at")]
 
 
@@ -69,32 +56,10 @@ async def profile(db, actor, student_id: str) -> dict[str, Any]:
     student = await require_student(db, actor, student_id)
     signals = await load_student_signals(db, student["user_id"])
     academic = summarize_student_marks(signals["marks"])
-    from config.config import get_settings
-
-    risk = risk_for_student(
-        student,
-        signals["risk_turns"][0] if signals["risk_turns"] else None,
-        signals["patterns"],
-        min_confidence=float(get_settings().PATTERN_RETRIEVAL_MIN_CONFIDENCE),
-    )
-    scores = [float(row["score"]) for row in signals["moods"] if is_number(row.get("score"))]
-    hours = [value for value in (sleep_hours(row) for row in signals["sleep"]) if value is not None]
     attendance = student.get("attendance_percentage")
     if attendance is None:
         stored = await load_attendance(db, [student["user_id"]])
         attendance = stored.get(student["user_id"])
-    concerns = []
-    for pattern in signals["patterns"]:
-        status = str(pattern.get("status") or "")
-        if status not in {"EMERGING", "ESTABLISHED"}:
-            continue
-        concerns.append(
-            {
-                "category": pattern.get("pattern_type"),
-                "domains": list(pattern.get("domains") or []),
-                "last_observed_at": isoformat(pattern.get("last_observed_at")),
-            }
-        )
     return {
         "student": {
             "student_id": student["user_id"],
@@ -126,16 +91,8 @@ async def profile(db, actor, student_id: str) -> dict[str, Any]:
             "available": attendance is not None,
             "reason": None if attendance is not None else ATTENDANCE_REASON,
         },
-        "wellbeing": {
-            "mood_index": mental_index(scores),
-            "mood_samples": len(scores),
-            "average_sleep_hours": mean(hours),
-            "sleep_samples": len(hours),
-        },
         "assignment_completion": None,
         "assignment_completion_reason": ASSIGNMENT_REASON,
-        "risk": risk,
-        "concerns": concerns[:8],
         "concern_recorded": student["concern_recorded"],
         "recent_activity": _activity(signals),
         "parent_on_file": bool(student.get("parent_on_file")),

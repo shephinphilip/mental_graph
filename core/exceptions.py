@@ -83,3 +83,17 @@ async def unhandled_exception_handler(request: Request, exc: Exception) -> JSONR
     body = error_body(500, SAFE_MESSAGES[500], request_id)
     body["detail"] = SAFE_MESSAGES[500]
     return JSONResponse(status_code=500, content=body, headers={"X-Request-ID": request_id})
+
+
+async def crypto_integrity_exception_handler(request: Request, exc: Exception) -> JSONResponse:
+    request_id = getattr(request.state, "request_id", "") or current_request_id()
+    logger.error(
+        "Crypto integrity request_id=%s method=%s path=%s type=%s",
+        request_id,
+        request.method,
+        request.url.path,
+        type(exc).__name__,
+    )
+    body = error_body(500, SAFE_MESSAGES[500], request_id)
+    body["detail"] = SAFE_MESSAGES[500]
+    return JSONResponse(status_code=500, content=body, headers={"X-Request-ID": request_id})

@@ -11,6 +11,7 @@ import time
 from typing import Any, Dict, Optional
 
 from config.config import logger
+from services.language_registry import REGISTRY_VERSION
 from services.users import get_by_identifier
 
 SUPPORTED = (
@@ -320,7 +321,7 @@ async def resolve_response_language(
             remember_language(user_id, language)
         elif raw:
             logger.warning(
-                "Invalid preferred_language=%s for user=%s; using ENGLISH",
+                "language_unsupported preferred_language=%s user=%s",
                 raw,
                 user_id,
             )
@@ -338,6 +339,7 @@ async def resolve_response_language(
         "resolved_language": language,
         "resolved_script": script,
         "source": source,
+        "registry_version": REGISTRY_VERSION,
     }
     logger.info(
         "language_resolution preferred_language=%s resolved_language=%s resolved_script=%s source=%s",

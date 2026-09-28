@@ -32,7 +32,7 @@ The Therapeutic AI Companion is a full-stack mental health support application t
 - **MongoDB Graph RAG** (Retrieval-Augmented Generation using `$graphLookup` and deterministic node IDs) for long-term relational memory
 - **MongoDB** for message history, mood logs, habits, and extracted session insights
 - **Inline Action Cards** — structured UI components rendered in-chat (habit, booking, tool, content, task)
-- **E2EE Encryption** — all stored message content is Fernet-encrypted at rest
+- **Encryption at rest** — selected user narrative fields are Fernet-sealed in MongoDB; the server decrypts them for chat, safety, and model calls. This is not end-to-end encryption. See [`docs/ENCRYPTION_DATA_MATRIX.md`](docs/ENCRYPTION_DATA_MATRIX.md).
 - **Crisis Safeguard Protocol** — immediate helpline surfacing on detection of crisis signals
 
 The backend is a **FastAPI** ASGI application; the frontend is a **Streamlit** web app. Both are independent services that communicate over HTTP.
@@ -47,7 +47,7 @@ The backend is a **FastAPI** ASGI application; the frontend is a **Streamlit** w
 | ⚡ Sub-500ms Session Resumption | Indexed MongoDB query restores the last 10 messages instantly on app open |
 | 📡 SSE Token Streaming | Real-time token delivery via Server-Sent Events with pre-first-token fallback contract |
 | 🃏 Inline Action Cards | LLM-emitted structured cards (TOOL, HABIT, TASK, BOOKING, CONTENT) rendered in the UI |
-| 🔒 E2EE Encryption | Fernet AES encryption on all message content written to MongoDB |
+| 🔒 Encryption at rest | Fernet on sealed fields (`enc::`); server-side decrypt for product use. Not E2EE. |
 | 🕵️ PII Anonymization | Phone, email, and Aadhaar redaction before text reaches external LLM APIs |
 | 🆘 Crisis Protocol | Keyword pre-check + LLM signal detection + immediate helpline resources |
 | 🔄 LLM Failover | AWS Bedrock (Gemma 2) primary → Sarvam AI fallback with explicit startup validation |
@@ -150,7 +150,7 @@ mental_health/
 │   ├── extraction.py       Async background metadata extraction pipeline
 │   ├── graph.py            LangGraph conversational state machine (4-node pipeline)
 │   ├── graph_rag.py        Neo4j Graph RAG service (read & write paths)
-│   ├── security.py         Fernet E2EE encryption + PII anonymization
+│   ├── security.py         Fernet at-rest encryption + PII anonymization
 │   ├── session_resume.py   Sub-500ms session state restoration
 │   └── streaming.py        SSE token streaming engine (8-step pipeline)
 │
@@ -190,13 +190,13 @@ mental_health/
 | File | Responsibility |
 |---|---|
 | [`action_cards.py`](services/action_cards.py) | Parses `<<<ACTION_CARD {...} ACTION_CARD>>>` blocks from LLM output using a compiled regex. Validates JSON against the `ActionCard` schema. Malformed blocks are skipped, not raised. |
-| [`context.py`](services/context.py) | Aggregates user context from MongoDB: `memory_summary`, `key_takeaways` (users), mood entries (mood_logs), and active habits (habit_events). Returns formatted strings for prompt injection. |
+| [`context.py`](services/context.py) | Aggregates user context from MongoDB: sealed `student_memories` facts (via `build_memory_context`), mood entries (`mood_logs`), and active habits (`habit_events`). Returns formatted strings for prompt injection. |
 | [`extraction.py`](services/extraction.py) | Background pipeline run after each chat response. Two isolated tasks: (1) LLM-based insight extraction → MongoDB `user_insights`; (2) LLM-based graph tuple extraction → Neo4j. Each task has its own try/except boundary. |
 | [`graph.py`](services/graph.py) | The LangGraph state machine. Defines `ChatState`, four pipeline node functions, and the public `run_chat_graph()` entry point. The compiled graph is lazily cached. |
 | [`graph_rag.py`](services/graph_rag.py) | Two-path Neo4j service. **Read:** Variable-length Cypher traversal from User node, formatted as bullet facts. **Write:** MERGE-based upsert of `GraphTuple` objects. Also creates startup constraints. |
-| [`security.py`](services/security.py) | `encrypt_payload()` / `decrypt_payload()` for Fernet E2EE (PBKDF2-derived key, `enc::` prefix). `anonymize_text()` for PII redaction (phone, email, Aadhaar). Configurable via settings. |
+| [`security.py`](services/security.py) | `encrypt_payload()` / `decrypt_payload()` for Fernet at-rest encryption (PBKDF2-derived key, `enc::` prefix). Fail-closed. `anonymize_text()` for PII redaction (phone, email, Aadhaar). See [`docs/ENCRYPTION_DATA_MATRIX.md`](docs/ENCRYPTION_DATA_MATRIX.md). |
 | [`session_resume.py`](services/session_resume.py) | Resolves session ID, loads last 10 messages (decrypted), computes dropped-session context string, and fetches the user's active emotional state. Target: < 500ms. |
-| [`streaming.py`](services/streaming.py) | 8-step SSE pipeline. Pre-checks for crisis keywords, fetches context, streams tokens from LLM, post-processes for action cards, persists messages with E2EE encryption. |
+| [`streaming.py`](services/streaming.py) | 8-step SSE pipeline. Pre-checks for crisis keywords, fetches context, streams tokens from LLM, post-processes for action cards, persists messages with at-rest encryption. |
 
 ---
 
@@ -211,7 +211,7 @@ User sends: "I've been really anxious about my job interview tomorrow."
 2. run_chat_graph() invoked:
 
    a. fetch_context_node:
-      - MongoDB users → memory_summary + key_takeaways
+      - MongoDB student_memories → sealed facts opened for the prompt
       - MongoDB mood_logs → last 7 days of entries
       - MongoDB habit_events → active habits
       - MongoDB messages → last 20 messages (session history)
@@ -279,8 +279,6 @@ Same as above but:
 {
   "_id": ObjectId,
   "user_id": "user_001",
-  "memory_summary": "User has been dealing with work anxiety...",
-  "key_takeaways": ["Breathing exercises help", "Avoids social events when stressed"],
   "active_emotional_state": "anxious",
   "crisis_flag": false,
   "crisis_flagged_at": null,
@@ -623,10 +621,15 @@ pytest tests/ -v --asyncio-mode=auto
 ## Security Model
 
 ### Encryption at Rest
-- All message `content` fields written to MongoDB are encrypted using **Fernet** (AES-128-CBC + HMAC).
-- The Fernet key is derived from `ENCRYPTION_SECRET_KEY` via **PBKDF2-HMAC-SHA256** (100,000 iterations).
-- Encrypted strings are prefixed with `enc::` for easy detection.
-- `decrypt_payload()` returns the original string on key mismatch or corruption rather than raising, to prevent data loss.
+
+User content is encrypted in transit and at rest. The service decrypts content server-side when required for safety processing, conversational context, memory, insights, reporting, and approved model-provider calls. This is not end-to-end encryption.
+
+Canonical field list: [`docs/ENCRYPTION_DATA_MATRIX.md`](docs/ENCRYPTION_DATA_MATRIX.md).
+
+- Sealed fields (including message `content`, journal body, mood notes, memory facts, report summaries, insight summaries, and graph node names) use **Fernet** (AES-128-CBC + HMAC) with an `enc::` prefix.
+- The Fernet key is derived from `ENCRYPTION_SECRET_KEY` via **PBKDF2-HMAC-SHA256** (100,000 iterations) and a static salt.
+- Encrypt failure raises `CryptoIntegrityError` and does not persist plaintext.
+- `enc::` values that cannot be opened raise `CryptoIntegrityError`. Ciphertext is not returned to API clients. Legacy strings without `enc::` still pass through.
 
 ### PII Anonymization
 Before user text is sent to AWS Bedrock, the following patterns are redacted:

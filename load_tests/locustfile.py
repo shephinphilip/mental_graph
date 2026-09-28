@@ -56,7 +56,7 @@ class ReadUser(HttpUser):
             self.client.get("/journal/recent-entries", headers=self.headers)
 
     @task
-    def tasks(self):
+    def list_tasks(self):
         if self.headers:
             user = __import__("os").environ.get("LOCUST_USER_ID", "")
             if user:

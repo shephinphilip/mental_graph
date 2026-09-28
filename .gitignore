@@ -1,6 +1,10 @@
+.venv/
 .venv
+venv/
+ENV/
 .env
 .env.example
+.env.staging.local
 .pytest_cache
 __pycache__
 .cursor.env

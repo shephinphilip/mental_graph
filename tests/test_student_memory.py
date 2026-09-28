@@ -16,6 +16,7 @@ from student_memory.store import (
     retrieve_facts,
     upsert_facts,
 )
+from services.security import open_text
 
 NOW = datetime(2026, 9, 26, tzinfo=timezone.utc)
 
@@ -55,7 +56,17 @@ class _Collection:
         for doc in self.docs:
             if _match(doc, query):
                 doc.update(update.get("$set") or {})
+                for field in (update.get("$unset") or {}):
+                    doc.pop(field, None)
                 return SimpleNamespace(modified_count=1)
+        return SimpleNamespace(modified_count=0)
+
+    async def update_many(self, query, update):
+        for doc in self.docs:
+            if _match(doc, query):
+                doc.update(update.get("$set") or {})
+                for field in (update.get("$unset") or {}):
+                    doc.pop(field, None)
         return SimpleNamespace(modified_count=0)
 
     async def delete_many(self, query):
@@ -169,11 +180,13 @@ async def test_consolidation_rewrites_profile_and_archives_faded_facts():
     assert result["kept"] == 2
     assert result["archived"] == 1
     user = db["users"].docs[0]
-    assert "Academic: Board exams are in March." in user["memory_summary"]
-    assert "Coping: Walking helps when thoughts race." in user["memory_summary"]
-    assert user["key_takeaways"][0] == "Board exams are in March"
+    assert "memory_summary" not in user
+    assert "key_takeaways" not in user
+    assert user.get("memory_consolidated_at")
     archived = [d for d in db["student_memories"].docs if d.get("archived")]
-    assert [d["fact"] for d in archived] == ["Skipped lunch once last week"]
+    assert [open_text(d["fact"]) for d in archived] == ["Skipped lunch once last week"]
+    remaining = [f["fact"] for f in await retrieve_facts(db, "stu_a", now=NOW + timedelta(days=20))]
+    assert remaining == ["Board exams are in March", "Walking helps when thoughts race"]
 
 
 @pytest.mark.asyncio

@@ -15,6 +15,11 @@ transcript, and a text box all post to the same route.
 
 ```
 POST /api/mood            {"mood": "anxious", "score": 3, "note": "before the mock"}
+```
+
+`note` is sealed at rest when present. `mood` and `score` stay plaintext. See `docs/ENCRYPTION_DATA_MATRIX.md`.
+
+```
 GET  /api/mood/recent     ?days=7
 ```
 

@@ -136,9 +136,14 @@ def test_psychiatrist_card_payload_shape():
     assert dumped["cta_label"] == "Explore Care Options"
     assert dumped["action_payload"]["type"] == "PSYCHIATRIST_REFERRAL"
     assert dumped["action_payload"]["execution_nonce"]
-    merged = ensure_psychiatrist_card([], attach=True, pattern_id="pat_1")
+    assert "under 3 minutes" not in dumped["subtitle"].lower()
+    assert "not a session" in dumped["subtitle"].lower()
+    assert ensure_psychiatrist_card([], attach=True, pattern_id="pat_1") == []
+    merged = ensure_psychiatrist_card(
+        [], attach=False, pattern_id="pat_1", care_request="pending_provider"
+    )
     assert len(merged) == 1
-    assert ensure_psychiatrist_card(merged, attach=True) == merged
+    assert ensure_psychiatrist_card(merged, attach=True, care_request="pending_provider") == merged
 
 
 def test_action_card_context_injected_into_system_prompt():

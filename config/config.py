@@ -240,7 +240,7 @@ class Settings(BaseSettings):
     RATE_LIMIT_DEFAULT_PER_MINUTE: int = 300
 
     # ── Sarvam speech (STT / TTS). The API key never leaves the backend. ──
-    SARVAM_API_KEY: str = "sk_591hdikc_WwGzsgMmBuV7JOGiqu7ah1iA"
+    SARVAM_API_KEY: str = ""
     SARVAM_STT_MODEL: str = "saarika:v2.5"
     SARVAM_TTS_MODEL: str = "bulbul:v3"
     SARVAM_STT_URL: str = "https://api.sarvam.ai/speech-to-text"

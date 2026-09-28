@@ -262,6 +262,24 @@ def test_harbor_principal_cannot_see_riverdale_students(api):
     assert "PRIVATE_MOOD_NOTE" not in own.text
     assert profile["academic"]["latest_percentage"] == 88
     assert profile["attendance"]["value"] == 92
+    forbidden = (
+        "SECRET_JOURNAL_BODY",
+        "SECRET_PATTERN_TEXT",
+        "PRIVATE_MOOD_NOTE",
+        "risk_intensity",
+        "gds_value",
+        "wellbeing",
+        "mood_index",
+        "pattern_confidence",
+        "psychological",
+    )
+    for token in forbidden:
+        assert token not in own.text
+    assert "moods" not in profile
+    assert "sleep" not in profile
+    assert "patterns" not in profile
+    assert "concerns" not in profile
+    assert "risk" not in profile
 
 
 def test_class_quadrant_and_pagination(api):

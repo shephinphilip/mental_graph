@@ -1,0 +1,57 @@
+# Local staging dependency plane. Do not interpolate from the developer `.env`.
+# Always pass: docker compose --env-file .env.staging.local -f docker-compose.staging.yml
+#
+# Generate secrets (gitignored): python scripts/generate_staging_env.py
+
+name: zenark-staging
+
+networks:
+  zenark-staging:
+    name: zenark-staging
+
+volumes:
+  zenark_staging_mongo_data:
+
+services:
+  mongo:
+    image: mongo:7
+    container_name: zenark-staging-mongo
+    networks:
+      - zenark-staging
+    volumes:
+      - zenark_staging_mongo_data:/data/db
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: zenark_staging
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_STAGING_PASSWORD}
+      MONGO_INITDB_DATABASE: zenark_staging
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - mongosh -u zenark_staging -p "$$MONGO_INITDB_ROOT_PASSWORD" --authenticationDatabase admin --quiet --eval "db.adminCommand('ping').ok"
+      interval: 5s
+      timeout: 8s
+      retries: 24
+      start_period: 25s
+    restart: unless-stopped
+
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: zenark-staging
+    container_name: zenark-staging-api
+    networks:
+      - zenark-staging
+    ports:
+      - "8000:8000"
+    env_file:
+      - .env.staging.local
+    environment:
+      APP_ENV: staging
+      DATABASE_NAME: zenark_staging
+      MONGO_DB_NAME: zenark_staging
+      MONGODB_URI: mongodb://zenark_staging:${MONGO_STAGING_PASSWORD}@mongo:27017/?authSource=admin
+    depends_on:
+      mongo:
+        condition: service_healthy
+    restart: unless-stopped

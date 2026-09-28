@@ -106,6 +106,11 @@ class ActionCard(BaseModel):
 # ════════════════════════════════════════════════════════════════════════════
 
 
+# Align with Exam Buddy. ~60s of speech is well under this; a long student
+# paragraph still fits. Larger payloads abuse memory and provider cost.
+MAX_CHAT_MESSAGE_CHARS = 4000
+
+
 class ChatMessageRequest(BaseModel):
     """
     Incoming chat message from the client application.
@@ -127,7 +132,7 @@ class ChatMessageRequest(BaseModel):
 
     user_id: str
     session_id: str
-    message: str
+    message: str = Field(min_length=1, max_length=MAX_CHAT_MESSAGE_CHARS)
 
 
 class ChatMessageResponse(BaseModel):
@@ -191,6 +196,8 @@ class WelcomeRequest(BaseModel):
 
 class PersonalizationConsentRequest(BaseModel):
     enabled: bool
+    purpose: str = "personalization"
+    source: str = "student"
 
 
 class LanguagePreferenceRequest(BaseModel):

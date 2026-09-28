@@ -82,8 +82,12 @@ async def retrieve_relevant_patterns(
 
 
 def format_pattern_context(patterns: List[Dict[str, Any]]) -> str:
+    patterns = list(patterns or [])[:1]
     if not patterns:
-        return "No longitudinal user patterns available for this turn."
+        return (
+            "No longitudinal user patterns available for this turn. "
+            "No stored pattern was supplied. Do not mention a pattern."
+        )
 
     blocks = [
         "USER PATTERN CONTEXT (longitudinal — separate from Graph RAG and APM)",

@@ -23,8 +23,9 @@ user data before it leaves the application boundary:
    Encrypted payloads are prefixed with ``"enc::"`` so they can be
    distinguished from unencrypted strings (e.g. legacy data or test data).
 
-   On any error (wrong key, corrupted token, etc.), the original token is
-   returned as-is rather than raising an exception, to prevent data loss.
+   Encryption failures raise ``CryptoIntegrityError`` and must not persist
+   plaintext. Decryption of ``enc::`` values that cannot be opened with the
+   current key also raises; ciphertext is never returned to API callers.
 
 2. PII Anonymization (Regex Redaction)
 ---------------------------------------
@@ -52,7 +53,7 @@ import base64
 import re
 from typing import Tuple
 
-from cryptography.fernet import Fernet, InvalidToken
+from cryptography.fernet import Fernet
 from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
 
@@ -74,6 +75,16 @@ _EMAIL_PATTERN = re.compile(
 
 # Aadhaar number: 12 digits optionally split by spaces or hyphens into groups of 4
 _AADHAAR_PATTERN = re.compile(r"\b\d{4}[\s\-]?\d{4}[\s\-]?\d{4}\b")
+
+_PLACEHOLDER_ENCRYPTION = "gAAAAABl_secret_key_placeholder_32bytes_len="
+
+
+class CryptoIntegrityError(RuntimeError):
+    """Encryption or decryption failed. The message must never include a payload."""
+
+
+def _log_crypto_failure(operation: str, exc: BaseException) -> None:
+    logger.error("%s failed type=%s", operation, type(exc).__name__)
 
 
 # ── Encryption Helper ─────────────────────────────────────────────────────────
@@ -136,13 +147,13 @@ def encrypt_payload(text: str) -> str:
     -------
     str
         The encrypted token as ``"enc::<fernet_token>"``, where the Fernet
-        token is URL-safe base64 encoded.  Returns ``text`` unchanged on
-        any error so that callers always receive a storable string.
+        token is URL-safe base64 encoded.
 
     Raises
     ------
-    None
-        All exceptions are caught internally and logged at ERROR level.
+    CryptoIntegrityError
+        If the key is refused or Fernet cannot encrypt. Callers must abort
+        the write. Plaintext is never returned.
 
     Example
     -------
@@ -155,25 +166,28 @@ def encrypt_payload(text: str) -> str:
     if not text:
         return text
 
+    settings = get_settings()
+    if (
+        settings.APP_ENV.lower() in {"production", "prod"}
+        and settings.ENCRYPTION_SECRET_KEY == _PLACEHOLDER_ENCRYPTION
+    ):
+        _log_crypto_failure("Encryption", RuntimeError("placeholder"))
+        raise CryptoIntegrityError("Encryption failed")
+
     try:
-        settings = get_settings()
-        # Derive the Fernet key from the configured secret
         key = _get_fernet_key(settings.ENCRYPTION_SECRET_KEY)
         f = Fernet(key)
-        # Fernet.encrypt returns bytes; decode to a UTF-8 string for MongoDB storage
         encrypted_bytes = f.encrypt(text.encode("utf-8"))
-        return f"enc::{encrypted_bytes.decode('utf-8')}"
-
+        sealed = f"enc::{encrypted_bytes.decode('utf-8')}"
+    except CryptoIntegrityError:
+        raise
     except Exception as exc:
-        # On any failure, log and return the original text to avoid data loss.
-        # This is a graceful degradation: unencrypted data is preferable to
-        # a write error that would corrupt the conversation history.
-        logger.error(
-            "Encryption failed — storing unencrypted (first 20 chars): %s... — error: %s",
-            text[:20],
-            exc,
-        )
-        return text
+        _log_crypto_failure("Encryption", exc)
+        raise CryptoIntegrityError("Encryption failed") from None
+    if not sealed.startswith("enc::"):
+        _log_crypto_failure("Encryption", RuntimeError("missing_prefix"))
+        raise CryptoIntegrityError("Encryption failed")
+    return sealed
 
 
 def decrypt_payload(token: str) -> str:
@@ -193,15 +207,14 @@ def decrypt_payload(token: str) -> str:
     Returns
     -------
     str
-        The original plaintext if decryption succeeds.  Returns ``token``
-        unchanged if:
-        - The string does not have the ``"enc::"`` prefix (not encrypted)
-        - Decryption fails (wrong key, corrupted token, etc.)
+        The original plaintext if decryption succeeds. Legacy strings
+        without the ``enc::`` prefix are returned unchanged.
 
     Raises
     ------
-    None
-        All exceptions are caught internally and logged at ERROR level.
+    CryptoIntegrityError
+        If an ``enc::`` value cannot be opened with the current key.
+        Ciphertext is never returned.
 
     Example
     -------
@@ -219,30 +232,31 @@ def decrypt_payload(token: str) -> str:
         return token
 
     try:
-        # Strip the "enc::" prefix (5 characters) to get the raw Fernet token
         raw_token = token[5:]
         settings = get_settings()
         key = _get_fernet_key(settings.ENCRYPTION_SECRET_KEY)
         f = Fernet(key)
-        # InvalidToken is raised if the key is wrong or the token was corrupted
         decrypted_bytes = f.decrypt(raw_token.encode("utf-8"))
         return decrypted_bytes.decode("utf-8")
-
-    except InvalidToken:
-        # InvalidToken means either the wrong key or token corruption — log
-        # specifically so operators know this is a key mismatch, not a bug.
-        logger.error(
-            "Decryption failed — InvalidToken (key mismatch or corrupted data). "
-            "Returning token as-is."
-        )
-        return token
-
+    except CryptoIntegrityError:
+        raise
     except Exception as exc:
-        logger.error(
-            "Decryption failed — unexpected error: %s. Returning token as-is.",
-            exc,
-        )
-        return token
+        _log_crypto_failure("Decryption", exc)
+        raise CryptoIntegrityError("Decryption failed") from None
+
+
+def seal_text(text: str) -> str:
+    """Encrypt sensitive text. Already-sealed values are left unchanged."""
+    if not text or str(text).startswith("enc::"):
+        return text
+    return encrypt_payload(text)
+
+
+def open_text(text: str) -> str:
+    """Decrypt a sealed field. Legacy plaintext is returned as stored."""
+    if not text:
+        return text or ""
+    return decrypt_payload(text)
 
 
 # ── PII Anonymization ─────────────────────────────────────────────────────────

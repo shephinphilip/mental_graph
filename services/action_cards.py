@@ -77,7 +77,10 @@ def build_psychiatrist_referral_card(
         card_type=CardType.BOOKING,
         card_id=PSYCHIATRIST_CARD_ID,
         title="Speak with a Licensed Psychiatrist",
-        subtitle="In-app video or text sessions available in under 3 minutes",
+        subtitle=(
+            "A care request can be recorded. "
+            "This is not a session, and none is available until a verified provider accepts it."
+        ),
         cta_label="Explore Care Options",
         action_payload={
             "type": "PSYCHIATRIST_REFERRAL",
@@ -96,9 +99,13 @@ def ensure_psychiatrist_card(
     attach: bool,
     pattern_id: Optional[str] = None,
     trigger_reason: str = "",
+    care_request: str = "",
 ) -> List[ActionCard]:
-    """Append the referral card once if the window requested it."""
-    if not attach:
+    """Show the pending-provider card only when escalation asked for it.
+
+    The risk window's attach flag is not a session and does not show the card.
+    """
+    if care_request != "pending_provider":
         return cards
     already = any(
         (card.card_id == PSYCHIATRIST_CARD_ID)

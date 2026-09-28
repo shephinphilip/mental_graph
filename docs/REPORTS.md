@@ -6,7 +6,8 @@ A report is created when the person asks for one. Chat does not create it. The w
 
 ## Stored reading
 
-- `psychiatric_summary` — a short reading of the sitting, without quotes
+- `psychiatric_summary` — a short reading of the sitting, without quotes. Stored sealed (`enc::`); readers decrypt.
+- `summary` — app-facing reading. Stored sealed (`enc::`); event labels and proposed task titles remain plaintext.
 - `events` — major situations the person shared. Each has `event_id`, `label`, and `resolved`
 - `proposed_tasks` — concrete next steps. They are not on today's task list until the person adds one
 - `psychiatric_metric` — session load from 1 (settled) to 10 (heavy). Not a diagnosis

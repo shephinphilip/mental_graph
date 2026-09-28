@@ -12,6 +12,7 @@ from typing import Any, Dict, List, Optional
 
 from config.config import get_settings, logger
 from services.apm import contains_crisis_signal
+from services.security import open_text, seal_text
 from tasks.identity import identity_keys, identity_query, owns_claimed_id
 from tracking.indexes import MOODS
 
@@ -70,7 +71,7 @@ def public_mood(doc: Dict[str, Any]) -> Dict[str, Any]:
     return {
         "mood": doc.get("mood"),
         "score": doc.get("score"),
-        "note": doc.get("note") or "",
+        "note": open_text(str(doc.get("note") or "")),
         "input_format": doc.get("input_format") or "TEXT",
         "logged_at": doc.get("logged_at"),
     }
@@ -120,7 +121,7 @@ async def log_mood(
         "user_id": user_id,
         "mood": label,
         "score": clamp_score(score),
-        "note": text,
+        "note": seal_text(text) if text else text,
         "input_format": clean_format(input_format),
         "logged_at": when,
         "created_at": when,

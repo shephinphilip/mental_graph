@@ -110,25 +110,8 @@ async def _record(
         last = await _on_cooldown(db, user_id, now)
         if last:
             cooldown_until = last + timedelta(days=get_settings().CONSULTATION_COOLDOWN_DAYS)
-        else:
-            try:
-                await db[NOTIFICATIONS].insert_one(
-                    {
-                        "userId": user_id,
-                        "notification_type": NOTIFICATION_TYPE,
-                        "read": False,
-                        "payload": {
-                            "evaluation_id": evaluation_id,
-                            "care_recommendation": RECOMMENDATIONS[status],
-                            "reasons": reasons,
-                            "session_id": session_id,
-                        },
-                        "created_at": now,
-                    }
-                )
-                notification_written = True
-            except Exception:
-                logger.exception("Consultation notification write failed user=%s", user_id)
+        # Escalation owns paging. This evaluation must not insert a notification
+        # or report a successful send.
     doc = {
         "evaluation_id": evaluation_id,
         "userId": user_id,
@@ -161,7 +144,7 @@ async def _record(
         await _audit(
             db,
             user_id,
-            "NOTIFICATION_WRITTEN" if notification_written else "REFERRAL_SUPPRESSED_COOLDOWN",
+            "REFERRAL_NOT_PAGED",
             actor=actor,
             details={"evaluation_id": evaluation_id, "cooldown_until": cooldown_until},
         )

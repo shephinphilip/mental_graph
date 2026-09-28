@@ -41,4 +41,15 @@ async def ensure_all_indexes(db) -> None:
     await ensure_dashboard_indexes(db)
     await db["users"].create_index("email", unique=True)
     await db["users"].create_index("user_id", unique=True)
+    from services.consent_grants import ensure_consent_indexes
+    from services.erasure import ensure_erasure_indexes
+    from services.escalation import ensure_escalation_indexes
+    from services.gds import ensure_gds_indexes
+    from services.stepping_stone import ensure_stepping_indexes
+
+    await ensure_gds_indexes(db)
+    await ensure_escalation_indexes(db)
+    await ensure_consent_indexes(db)
+    await ensure_erasure_indexes(db)
+    await ensure_stepping_indexes(db)
     logger.info("All domain indexes ensured")

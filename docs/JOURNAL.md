@@ -10,7 +10,7 @@
 | `user_id` | Authenticated chat identity |
 | `mood` | One of 😊 😃 😐 😢, chosen by the person |
 | `title` | At least 3 characters |
-| `content` | At least 10 characters. Never rewritten by analysis |
+| `content` | At least 10 characters. Sealed at rest (`enc::`). Never rewritten by analysis. API responses decrypt for the owner. Title is stored plaintext. |
 | `tags` | Optional |
 | `time_spent` | Optional seconds, default 0 |
 | `is_favorite` / `favorited_at` | Optional |

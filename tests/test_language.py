@@ -214,6 +214,7 @@ async def test_invalid_stored_language_logs_and_falls_back(monkeypatch, caplog):
         resolved = await resolve_response_language(object(), "user_a")
     assert resolved["resolved_language"] == "ENGLISH"
     assert "ml-IN" in caplog.text
+    assert "language_unsupported" in caplog.text
     assert "I am feeling very stressed" not in caplog.text
 
 

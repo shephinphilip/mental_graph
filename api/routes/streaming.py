@@ -8,7 +8,7 @@ decisions via ``services/streaming.py``.
 
 from __future__ import annotations
 
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import StreamingResponse
 from motor.motor_asyncio import AsyncIOMotorDatabase
 
@@ -16,7 +16,7 @@ from api.deps import assert_owner, authenticated_user_id
 from config.config import logger
 from database import get_db
 from schemas import ChatMessageRequest
-from services.extraction import run_background_extraction
+from services.security import CryptoIntegrityError
 from services.streaming import stream_chat_graph
 
 router = APIRouter(tags=["chat"])
@@ -25,7 +25,6 @@ router = APIRouter(tags=["chat"])
 @router.post("/chat/stream")
 async def stream_message(
     payload: ChatMessageRequest,
-    background_tasks: BackgroundTasks,
     authenticated_id: str = Depends(authenticated_user_id),
     db: AsyncIOMotorDatabase = Depends(get_db),
 ):
@@ -38,15 +37,6 @@ async def stream_message(
             "Incoming SSE stream request — user=%s session=%s",
             payload.user_id,
             payload.session_id,
-        )
-
-        background_tasks.add_task(
-            run_background_extraction,
-            user_id=payload.user_id,
-            session_id=payload.session_id,
-            message=payload.message,
-            reply="[Streamed Response]",
-            db=db,
         )
 
         return StreamingResponse(
@@ -64,6 +54,8 @@ async def stream_message(
             },
         )
 
+    except CryptoIntegrityError:
+        raise
     except Exception as exc:
         logger.exception(
             "Failed to initiate SSE stream for user=%s session=%s: %s",

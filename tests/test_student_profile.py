@@ -62,6 +62,8 @@ class _Collection:
         for doc in self.docs:
             if _match(doc, query):
                 doc.update(update.get("$set") or {})
+                for field in (update.get("$unset") or {}):
+                    doc.pop(field, None)
                 return SimpleNamespace(modified_count=1)
         if upsert:
             created = {key: value for key, value in (query or {}).items() if not isinstance(value, dict)}
@@ -314,6 +316,8 @@ def test_recent_sessions_topics_and_resolution():
     assert len(profile["conversations"]["recent_sessions"]) == 10
     assert "Physics mock" in profile["conversations"]["recurring_conversation_topics"]
     assert "Physics mock" in profile["conversations"]["unresolved_issues"]
+    assert profile["conversations"]["recent_session_summary"] == "Physics mock"
+    assert "unfinished" not in str(profile)
     assert "transcript" not in profile["conversations"]["recent_session_summary"].lower()
 
 

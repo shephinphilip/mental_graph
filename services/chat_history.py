@@ -23,6 +23,8 @@ from typing import Any, Dict, List, Optional, Tuple
 from motor.motor_asyncio import AsyncIOMotorDatabase
 from pymongo.errors import DuplicateKeyError
 
+from services.language_registry import REGISTRY_VERSION
+
 from config.config import logger
 from services.security import decrypt_payload, encrypt_payload
 
@@ -187,6 +189,7 @@ async def find_completed_user_turn(
         prev.get("role") == "user"
         and last.get("role") == "assistant"
         and last.get("message_kind") != KIND_WELCOME
+        and not last.get("incomplete")
         and decrypt_payload(prev.get("content", "")) == user_message
     ):
         return last
@@ -297,6 +300,7 @@ async def persist_welcome_message(
         extra={
             "response_language": response_language,
             "response_script": response_script,
+            "registry_version": REGISTRY_VERSION,
         },
     )
 
@@ -323,9 +327,21 @@ async def update_welcome_message(
                 "content": encrypt_payload(content),
                 "response_language": response_language,
                 "response_script": response_script,
+                "registry_version": REGISTRY_VERSION,
             }
         },
     )
+
+
+def _response_stamp(language: str, script: str, incomplete: bool) -> Dict[str, Any]:
+    stamp: Dict[str, Any] = {
+        "response_language": language,
+        "response_script": script,
+        "registry_version": REGISTRY_VERSION,
+    }
+    if incomplete:
+        stamp["incomplete"] = True
+    return stamp
 
 
 async def persist_user_and_assistant(
@@ -335,6 +351,9 @@ async def persist_user_and_assistant(
     session_id: str,
     user_message: str,
     assistant_reply: str,
+    response_language: str = "",
+    response_script: str = "",
+    incomplete: bool = False,
 ) -> Dict[str, Any]:
     """
     Persist a normal chat exchange as two separate records (user then assistant).
@@ -384,6 +403,7 @@ async def persist_user_and_assistant(
             if hasattr(base_time, "year")
             else datetime.now(timezone.utc),
             seq=int(tip.get("seq") or 0) + 1,
+            extra=_response_stamp(response_language, response_script, incomplete),
         )
         return {
             "user_doc": tip,
@@ -421,6 +441,7 @@ async def persist_user_and_assistant(
         idempotency_key=assistant_key,
         created_at=(user_doc.get("created_at") or base_time) + timedelta(milliseconds=1),
         seq=int(user_doc.get("seq") or base_seq) + 1,
+        extra=_response_stamp(response_language, response_script, incomplete),
     )
     return {
         "user_doc": user_doc,
