@@ -76,6 +76,29 @@ def _fmt_date(value: Any) -> str:
     return "unknown date"
 
 
+# Same cutoffs the trend sentence below has always used.
+DECLINE_DELTA = -8.0
+IMPROVE_DELTA = 8.0
+
+
+def stored_percentage(doc: Dict[str, Any]) -> Optional[float]:
+    """Percentage stored on the row, or marks / total_marks when that is all we have."""
+    pct = doc.get("percentage")
+    if isinstance(pct, bool) or not isinstance(pct, (int, float)):
+        pct = None
+    if pct is None and doc.get("total_marks"):
+        try:
+            total = float(doc["total_marks"])
+            raw = float(doc["marks"])
+            if total:
+                pct = round(100.0 * raw / total, 1)
+        except (TypeError, ValueError, ZeroDivisionError):
+            pct = None
+    if isinstance(pct, bool) or not isinstance(pct, (int, float)):
+        return None
+    return float(pct)
+
+
 def build_marks_context(marks: List[Dict[str, Any]]) -> str:
     """Token-efficient prompt block with a one-line trend, not a raw dump."""
     if not marks:
@@ -84,14 +107,9 @@ def build_marks_context(marks: List[Dict[str, Any]]) -> str:
     lines = []
     percents: List[float] = []
     for doc in marks:
-        pct = doc.get("percentage")
-        if pct is None and doc.get("total_marks"):
-            try:
-                pct = round(100.0 * float(doc["marks"]) / float(doc["total_marks"]), 1)
-            except (TypeError, ValueError, ZeroDivisionError):
-                pct = None
-        if isinstance(pct, (int, float)):
-            percents.append(float(pct))
+        pct = stored_percentage(doc)
+        if pct is not None:
+            percents.append(pct)
         rank_bit = f", rank {doc['rank']}" if doc.get("rank") is not None else ""
         lines.append(
             f"- {_fmt_date(doc.get('exam_date'))}: {doc.get('subject')} "
@@ -102,9 +120,9 @@ def build_marks_context(marks: List[Dict[str, Any]]) -> str:
     trend = "Not enough points to call a trend."
     if len(percents) >= 3:
         delta = percents[-1] - percents[0]
-        if delta <= -8:
+        if delta <= DECLINE_DELTA:
             trend = f"Declining overall ({percents[0]:.0f}% → {percents[-1]:.0f}%)."
-        elif delta >= 8:
+        elif delta >= IMPROVE_DELTA:
             trend = f"Improving overall ({percents[0]:.0f}% → {percents[-1]:.0f}%)."
         else:
             trend = f"Unstable / mixed ({percents[0]:.0f}% → {percents[-1]:.0f}%)."

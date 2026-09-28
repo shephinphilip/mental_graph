@@ -2,10 +2,9 @@
 
 from __future__ import annotations
 
-import logging
 from typing import Any, Dict, List
 
-logger = logging.getLogger(__name__)
+from config.config import logger
 
 EMPTY = (
     "No previous session report. This is the first conversation on file. "

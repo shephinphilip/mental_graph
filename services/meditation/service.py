@@ -10,12 +10,13 @@ when personalization consent is on.
 from __future__ import annotations
 
 import inspect
-import logging
 import secrets
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
 from pymongo.errors import DuplicateKeyError
+
+from config.config import logger
 
 from meditation.audio import get_audio_path
 from meditation.data import get_all_sessions, get_session_by_id
@@ -37,8 +38,6 @@ from services.meditation.engine import (
     evaluate_catalog_promotion,
     recommend,
 )
-
-logger = logging.getLogger(__name__)
 
 EXECUTIONS = "meditation_executions"
 OFFERS = "meditation_offers"

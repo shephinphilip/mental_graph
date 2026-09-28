@@ -48,7 +48,6 @@ Public API
   upsert_graph_tuples(db, user_id, tuples) → int
 """
 
-import logging
 import re
 from hashlib import sha256
 from datetime import datetime, timezone
@@ -56,10 +55,8 @@ from typing import Any, Dict, List, Optional
 
 from motor.motor_asyncio import AsyncIOMotorDatabase
 
-from config import get_settings
+from config.config import get_settings, logger
 from schemas import GraphTuple
-
-logger = logging.getLogger(__name__)
 
 # ── Allowed relationship types (whitelist for traversal safety) ───────────────
 _ALLOWED_RELATIONS = frozenset(

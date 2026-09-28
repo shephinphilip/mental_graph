@@ -7,5 +7,6 @@
 | Meditation catalog | in-process metadata | process lifetime | `meditation/data.py` + files | deploy | Ranker returns no card |
 | Rate-limit windows | path + auth suffix | 60s sliding | n/a (control plane) | expire | Each replica has its own counters |
 | LLM circuit | process | `LLM_CIRCUIT_RESET_SECONDS` | n/a | success or reset | Open only when `APP_ENV` is production/staging |
+| School dashboard bundle | `dashboard:bundle\|{school_key}\|{year}\|{from}\|{to}` | 45s | users, marks, mood, sleep, patterns, risk turns | TTL only; key always includes the school | Miss rebuilds from Mongo. Process-local, so replicas do not share it |
 
 Do not cache raw conversations or journal bodies.

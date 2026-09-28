@@ -12,11 +12,11 @@ Chat turns do not rank a meditation.
 from __future__ import annotations
 
 import json
-import logging
 import re
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
+from config.config import logger
 from prompts import SESSION_REPORT_PROMPT
 from services.apm import contains_crisis_signal
 from services.chat_history import decrypt_message_doc, load_session_messages
@@ -29,8 +29,6 @@ from services.meditation.service import (
     overlay_promotions,
 )
 from meditation.data import get_all_sessions
-
-logger = logging.getLogger(__name__)
 
 REPORTS = "session_reports"
 
@@ -121,7 +119,7 @@ async def generate_session_report(db, *, user_id: str, session_id: str) -> Dict[
     sleep_text = "No sleep data available"
     sleep_records: List[Dict[str, Any]] = []
     try:
-        from config import get_settings
+        from config.config import get_settings
         from sleep.context import build_sleep_context
         from sleep.reader import get_sleep_history, valid_records
 

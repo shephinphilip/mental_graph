@@ -7,14 +7,11 @@ must persist user actions before invoking the model.
 from __future__ import annotations
 
 import asyncio
-import logging
 import random
 import time
 from typing import Any
 
-from config import get_settings
-
-logger = logging.getLogger(__name__)
+from config.config import get_settings, logger
 
 _TRANSIENT = (
     TimeoutError,

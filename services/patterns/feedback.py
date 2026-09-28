@@ -7,7 +7,7 @@ from typing import Any, Dict, Optional
 
 from motor.motor_asyncio import AsyncIOMotorDatabase
 
-from config import get_settings
+from config.config import get_settings
 from schemas import PatternFeedbackEvent
 from services.patterns.score import classify_status, compute_confidence
 from services.patterns.store import (

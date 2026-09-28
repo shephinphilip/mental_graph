@@ -2,9 +2,10 @@
 
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
 from motor.motor_asyncio import AsyncIOMotorDatabase
 
+from config.config import logger
 from database import get_db
 from schemas import LoginRequest, LoginResponse, SignupRequest
 from services.users import authenticate, issue_access_token, register_user
@@ -33,12 +34,17 @@ async def login(payload: LoginRequest, db: AsyncIOMotorDatabase = Depends(get_db
     """Authenticate by email. Password is never returned."""
     user = await authenticate(db, payload.email, payload.password)
     if not user:
+        logger.warning("Login failed")
         raise HTTPException(status_code=401, detail="Invalid email or password")
     return _session_payload(user)
 
 
 @router.post("/auth/signup", response_model=LoginResponse, status_code=201)
-async def signup(payload: SignupRequest, db: AsyncIOMotorDatabase = Depends(get_db)):
+async def signup(
+    payload: SignupRequest,
+    background_tasks: BackgroundTasks,
+    db: AsyncIOMotorDatabase = Depends(get_db),
+):
     """Create a new account. Returns the same session payload as login."""
     try:
         user = await register_user(
@@ -52,4 +58,7 @@ async def signup(payload: SignupRequest, db: AsyncIOMotorDatabase = Depends(get_
         status = 409 if "already exists" in detail.lower() else 400
         raise HTTPException(status_code=status, detail=detail) from exc
 
+    from services.student_profile import enqueue_profile_refresh
+
+    enqueue_profile_refresh(background_tasks, db, user["user_id"])
     return _session_payload(user)

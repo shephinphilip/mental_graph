@@ -6,17 +6,14 @@ for them, so the prompt stays quiet by default and nobody is nagged by a number.
 
 from __future__ import annotations
 
-import logging
 import secrets
 from collections import deque
 from datetime import date, datetime, timedelta, timezone
 from typing import Any, Dict, Iterable, List, Optional
 
-from config import get_settings
+from config.config import get_settings, logger
 from tasks.identity import identity_keys, identity_query, owns_claimed_id
 from tracking.indexes import HABITS
-
-logger = logging.getLogger(__name__)
 
 TITLE_MAX = 60
 FREQUENCIES = ("daily", "weekly")

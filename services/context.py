@@ -33,17 +33,14 @@ empty.  Database errors at this level are not suppressed — they propagate
 up to ``fetch_user_context()`` callers, which should handle them.
 """
 
-import logging
 from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List
 
 from motor.motor_asyncio import AsyncIOMotorDatabase
 
-from config import get_settings
+from config.config import get_settings, logger
 from services.marks import academic_context_for_turn
 from services.users import get_by_identifier
-
-logger = logging.getLogger(__name__)
 
 
 async def fetch_user_context(
@@ -186,8 +183,33 @@ async def fetch_user_context(
 
     from services.language_preferences import language_instruction, resolve_response_language
 
-    language = await resolve_response_language(db, user_id)
+    language = await resolve_response_language(
+        db,
+        user_id,
+        current_message="" if opening_turn else user_message,
+        opening_turn=opening_turn,
+    )
     instruction = language_instruction(language)
+
+    student_profile_context = "No consolidated student profile yet."
+    try:
+        from services.student_profile import get_student_profile_context
+
+        student_profile_context = await get_student_profile_context(db, user_id)
+    except Exception:
+        logger.exception("Student profile context failed for user=%s", user_id)
+    script_note = (
+        f"Preferred language: {language['resolved_language']}. "
+        f"Writing style: {language['resolved_script']}. "
+        "This line follows users.preferred_language. An older profile value does not."
+    )
+    if "Preferred language:" in student_profile_context:
+        student_profile_context = "\n".join(
+            script_note if line.startswith("Preferred language:") else line
+            for line in student_profile_context.splitlines()
+        )
+    else:
+        student_profile_context = student_profile_context.rstrip() + "\n" + script_note
 
     logger.debug(
         "Context aggregated for user=%s — memory=%d chars, moods=%d chars, habits=%d chars",
@@ -208,7 +230,9 @@ async def fetch_user_context(
         "task_context": task_context,
         "care_context": care_context,
         "preferred_language": language["resolved_language"],
+        "response_script": language["resolved_script"],
         "language_instruction": instruction,
+        "student_profile_context": student_profile_context,
         **profile_fields,
     }
 

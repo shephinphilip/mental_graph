@@ -40,11 +40,11 @@ Migration notes
   ``services.mongo_graph`` directly.
 """
 
-import logging
 from typing import Any, Dict, List
 
 from motor.motor_asyncio import AsyncIOMotorDatabase
 
+from config.config import logger
 from schemas import GraphTuple
 from services.mongo_graph import (
     ensure_graph_indexes,
@@ -54,8 +54,6 @@ from services.mongo_graph import (
     _make_node_id,
     _NODE_NAME_FIELD,
 )
-
-logger = logging.getLogger(__name__)
 
 
 # ════════════════════════════════════════════════════════════════════════════

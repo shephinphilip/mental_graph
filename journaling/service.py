@@ -12,7 +12,7 @@ from typing import Any, Dict, List, Optional
 
 from bson import ObjectId
 
-from config import get_settings
+from config.config import get_settings
 from journaling.identity import identity_keys, identity_query, owns_claimed_id
 from journaling.models import clean_tags, topics_from, validate_entry
 from services.apm import contains_crisis_signal

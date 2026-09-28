@@ -52,19 +52,19 @@ global that avoids import-time side effects).  The LangGraph import is
 also lazy for the same reason.
 """
 
-import logging
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional, TypedDict
 
 from motor.motor_asyncio import AsyncIOMotorDatabase
 
-from config import get_settings
+from config.config import get_settings, logger
 from llm_provider import get_llm, sanitize_messages_for_bedrock
 from prompts import (
     dropped_session_hint,
     format_system_prompt,
     session_phase_instructions,
 )
+from services.action_boundary import boundary_background, suppress_ordinary_cards
 from services.action_cards import (
     attach_apm_execution_metadata,
     build_crisis_support_card,
@@ -84,8 +84,6 @@ from services.chat_history import (
 )
 from services.context import fetch_user_context
 from services.inner_council import deliberate as inner_council_deliberate
-
-logger = logging.getLogger(__name__)
 
 
 # ════════════════════════════════════════════════════════════════════════════
@@ -328,6 +326,14 @@ async def generate_node(state: ChatState) -> dict:
         persistent_distress=risk_decision.persistent_distress,
         attach_psychiatrist_card=risk_decision.attach_psychiatrist_card,
         action_card_context=risk_decision.action_card_context,
+        background_context=boundary_background(
+            state.get("graph_context") or "",
+            context.get("adaptive_memory_context") or "",
+            context.get("pattern_context") or "",
+            context.get("journal_context") or "",
+            context.get("sleep_context") or "",
+            context.get("task_context") or "",
+        ),
     )
     formatted_system = format_system_prompt(
         graph_context=state.get("graph_context"),
@@ -346,6 +352,7 @@ async def generate_node(state: ChatState) -> dict:
         journal_context=context.get("journal_context"),
         task_context=context.get("task_context"),
         care_context=context.get("care_context"),
+        student_profile_context=context.get("student_profile_context"),
         language_instruction=context.get("language_instruction"),
         session_phase=session_phase_instructions(
             opening_turn=bool(state.get("opening_turn")),
@@ -454,14 +461,21 @@ async def format_output_node(state: ChatState) -> dict:
         None,
         suppress=True,
     )
+    action_cards = suppress_ordinary_cards(
+        state.get("user_message", ""),
+        action_cards,
+    )
 
     # Step 2: Persist history as separate role-tagged records (idempotent).
     if state.get("opening_turn") and not state.get("persist_user_message", True):
+        ctx = state.get("user_context") or {}
         await persist_welcome_message(
             db,
             user_id=user_id,
             session_id=session_id,
             content=clean_reply,
+            response_language=str(ctx.get("preferred_language") or ""),
+            response_script=str(ctx.get("response_script") or ""),
         )
     else:
         await persist_user_and_assistant(

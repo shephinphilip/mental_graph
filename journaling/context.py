@@ -2,15 +2,12 @@
 
 from __future__ import annotations
 
-import logging
 from datetime import datetime
 from typing import Any, Dict, List
 
-from config import get_settings
+from config.config import get_settings, logger
 from journaling.service import recent_entries
 from services.apm import contains_crisis_signal
-
-logger = logging.getLogger(__name__)
 
 EMPTY_JOURNAL_CONTEXT = "No journal entries available."
 

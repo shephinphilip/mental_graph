@@ -12,7 +12,7 @@ from typing import Any, Dict, List, Optional
 
 from motor.motor_asyncio import AsyncIOMotorDatabase
 
-from config import get_settings
+from config.config import get_settings
 from services.apm import personalization_enabled
 from services.marks import get_recent_marks
 

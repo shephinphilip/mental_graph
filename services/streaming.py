@@ -45,14 +45,13 @@ The following event names are emitted:
 """
 
 import json
-import logging
 from datetime import datetime, timezone
 from typing import AsyncGenerator
 
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 from motor.motor_asyncio import AsyncIOMotorDatabase
 
-from config import get_settings
+from config.config import get_settings, logger
 from llm_provider import get_fallback_llm, get_primary_llm, sanitize_messages_for_bedrock
 from prompts import (
     dropped_session_hint,
@@ -60,6 +59,7 @@ from prompts import (
     session_phase_instructions,
 )
 from schemas import ActionCard, CardType
+from services.action_boundary import boundary_background, suppress_ordinary_cards
 from services.action_cards import (
     attach_apm_execution_metadata,
     ensure_psychiatrist_card,
@@ -77,8 +77,6 @@ from services.chat_history import (
 from services.context import fetch_user_context
 from services.inner_council import deliberate as inner_council_deliberate
 from services.security import anonymize_text, decrypt_payload
-
-logger = logging.getLogger(__name__)
 
 
 def _extract_token_text(chunk) -> str:
@@ -259,6 +257,7 @@ async def stream_chat_graph(
         journal_context=user_context.get("journal_context"),
         task_context=user_context.get("task_context"),
         care_context=user_context.get("care_context"),
+        student_profile_context=user_context.get("student_profile_context"),
         language_instruction=user_context.get("language_instruction"),
         session_phase=session_phase_instructions(
             opening_turn=False,
@@ -272,6 +271,14 @@ async def stream_chat_graph(
             persistent_distress=risk_decision.persistent_distress,
             attach_psychiatrist_card=risk_decision.attach_psychiatrist_card,
             action_card_context=risk_decision.action_card_context,
+            background_context=boundary_background(
+                graph_context,
+                user_context.get("adaptive_memory_context") or "",
+                user_context.get("pattern_context") or "",
+                user_context.get("journal_context") or "",
+                user_context.get("sleep_context") or "",
+                user_context.get("task_context") or "",
+            ),
         ).as_prompt_block(),
         action_card_context=format_action_card_context(
             risk_decision.action_card_context
@@ -361,6 +368,7 @@ async def stream_chat_graph(
         trigger_reason=risk_decision.trigger_reason,
     )
     cards = ensure_single_meditation_card(cards, None, suppress=True)
+    cards = suppress_ordinary_cards(user_message, cards)
 
     if cards:
         for card in cards:

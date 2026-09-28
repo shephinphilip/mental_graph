@@ -4,12 +4,17 @@ from __future__ import annotations
 
 from motor.motor_asyncio import AsyncIOMotorClient
 
-from config import get_settings
+from config.config import get_settings, logger
 
 
 def create_mongo_client() -> AsyncIOMotorClient:
     settings = get_settings()
     uri = settings.MONGO_URI or settings.MONGODB_URI
+    logger.debug(
+        "Creating MongoDB client pool_max=%s pool_min=%s",
+        settings.MONGO_MAX_POOL_SIZE,
+        settings.MONGO_MIN_POOL_SIZE,
+    )
     return AsyncIOMotorClient(
         uri,
         maxPoolSize=settings.MONGO_MAX_POOL_SIZE,

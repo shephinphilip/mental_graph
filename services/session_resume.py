@@ -38,16 +38,13 @@ Performance notes
 - The ``users`` collection should have an index on ``{ user_id: 1 }``
 """
 
-import logging
 from typing import Any, Dict, List, Optional
 
 from motor.motor_asyncio import AsyncIOMotorDatabase
 
-from config import get_settings
+from config.config import get_settings, logger
 from schemas import SessionResumeResponse
 from services.chat_history import decrypt_message_doc, load_session_messages
-
-logger = logging.getLogger(__name__)
 
 
 async def resume_user_session(

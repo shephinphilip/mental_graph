@@ -4,11 +4,11 @@ from __future__ import annotations
 
 from typing import Optional
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, BackgroundTasks, Depends
 from motor.motor_asyncio import AsyncIOMotorDatabase
 
 from api.deps import authenticated_user_id, task_http
-from config import get_settings
+from config.config import get_settings, logger
 from database import get_db
 from schemas import (
     HabitCheckInRequest,
@@ -24,6 +24,7 @@ router = APIRouter(tags=["tracking"])
 @router.post("/mood")
 async def log_mood_check_in(
     payload: MoodLogRequest,
+    background_tasks: BackgroundTasks,
     user_id: str = Depends(authenticated_user_id),
     db: AsyncIOMotorDatabase = Depends(get_db),
 ):
@@ -31,7 +32,7 @@ async def log_mood_check_in(
     from tracking.mood import log_mood
 
     try:
-        return await log_mood(
+        logged = await log_mood(
             db,
             user_id,
             mood=payload.mood,
@@ -43,7 +44,12 @@ async def log_mood_check_in(
             claimed_user_id=payload.user_id,
         )
     except (PermissionError, LookupError, ValueError) as exc:
+        logger.warning("Mood log rejected: %s", exc)
         raise task_http(exc) from exc
+    from services.student_profile import enqueue_profile_refresh
+
+    enqueue_profile_refresh(background_tasks, db, user_id)
+    return logged
 
 
 @router.get("/mood/recent")
@@ -137,6 +143,7 @@ async def patch_user_habit(
 async def check_in_user_habit(
     habit_id: str,
     payload: HabitCheckInRequest,
+    background_tasks: BackgroundTasks,
     user_id: str = Depends(authenticated_user_id),
     db: AsyncIOMotorDatabase = Depends(get_db),
 ):
@@ -144,7 +151,7 @@ async def check_in_user_habit(
     from tracking.habits import check_in
 
     try:
-        return await check_in(
+        logged = await check_in(
             db,
             user_id,
             habit_id,
@@ -153,3 +160,7 @@ async def check_in_user_habit(
         )
     except (PermissionError, LookupError, ValueError) as exc:
         raise task_http(exc) from exc
+    from services.student_profile import enqueue_profile_refresh
+
+    enqueue_profile_refresh(background_tasks, db, user_id)
+    return logged

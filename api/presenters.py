@@ -15,7 +15,7 @@ def public_sleep(doc: dict) -> dict:
 
 
 def public_journal(doc: dict, *, preview: bool = False) -> dict:
-    from config import get_settings
+    from config.config import get_settings
     from journaling.service import public_entry
 
     limit = get_settings().JOURNAL_PREVIEW_CHARS if preview else None

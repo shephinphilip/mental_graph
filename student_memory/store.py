@@ -2,16 +2,13 @@
 
 from __future__ import annotations
 
-import logging
 import uuid
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
-from config import get_settings
+from config.config import get_settings, logger
 from student_memory.indexes import COLLECTION
 from student_memory.models import CATEGORIES, normalize_facts
-
-logger = logging.getLogger(__name__)
 
 CONFIRM_BOOST = 0.08
 

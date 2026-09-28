@@ -2,16 +2,13 @@
 
 from __future__ import annotations
 
-import logging
 import uuid
 from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional
 
-from config import get_settings
+from config.config import get_settings, logger
 from consultation.indexes import AUDIT, EVALUATIONS, NOTIFICATIONS
 from consultation.signals import collect_signals
-
-logger = logging.getLogger(__name__)
 
 DECISIONS = ("REFERRED", "MONITORING", "NOT_NEEDED")
 

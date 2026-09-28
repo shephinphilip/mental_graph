@@ -1,0 +1,1830 @@
+{
+  "name": "mental_health",
+  "type": "directory",
+  "children": [
+    {
+      "name": "consultation",
+      "type": "directory",
+      "children": [
+        {
+          "name": "__init__.py",
+          "type": "file",
+          "extension": ".py",
+          "size_bytes": 514
+        },
+        {
+          "name": "context.py",
+          "type": "file",
+          "extension": ".py",
+          "size_bytes": 1142
+        },
+        {
+          "name": "evaluate.py",
+          "type": "file",
+          "extension": ".py",
+          "size_bytes": 9434
+        },
+        {
+          "name": "indexes.py",
+          "type": "file",
+          "extension": ".py",
+          "size_bytes": 954
+        },
+        {
+          "name": "roles.py",
+          "type": "file",
+          "extension": ".py",
+          "size_bytes": 879
+        },
+        {
+          "name": "signals.py",
+          "type": "file",
+          "extension": ".py",
+          "size_bytes": 3871
+        }
+      ]
+    },
+    {
+      "name": "docs",
+      "type": "directory",
+      "children": [
+        {
+          "name": "CONSULTATION.md",
+          "type": "file",
+          "extension": ".md",
+          "size_bytes": 2950
+        },
+        {
+          "name": "ENCRYPTION.md",
+          "type": "file",
+          "extension": ".md",
+          "size_bytes": 3781
+        },
+        {
+          "name": "JOURNAL.md",
+          "type": "file",
+          "extension": ".md",
+          "size_bytes": 3487
+        },
+        {
+          "name": "MEDITATION_RECOMMENDATION.md",
+          "type": "file",
+          "extension": ".md",
+          "size_bytes": 9379
+        },
+        {
+          "name": "PATTERN_DETECTION.md",
+          "type": "file",
+          "extension": ".md",
+          "size_bytes": 6615
+        },
+        {
+          "name": "REPORTS.md",
+          "type": "file",
+          "extension": ".md",
+          "size_bytes": 1534
+        },
+        {
+          "name": "SLEEP.md",
+          "type": "file",
+          "extension": ".md",
+          "size_bytes": 4985
+        },
+        {
+          "name": "STUDENT_MEMORY.md",
+          "type": "file",
+          "extension": ".md",
+          "size_bytes": 1682
+        },
+        {
+          "name": "TASKS.md",
+          "type": "file",
+          "extension": ".md",
+          "size_bytes": 2082
+        },
+        {
+          "name": "TRACKING.md",
+          "type": "file",
+          "extension": ".md",
+          "size_bytes": 4052
+        }
+      ]
+    },
+    {
+      "name": "journaling",
+      "type": "directory",
+      "children": [
+        {
+          "name": "__init__.py",
+          "type": "file",
+          "extension": ".py",
+          "size_bytes": 164
+        },
+        {
+          "name": "context.py",
+          "type": "file",
+          "extension": ".py",
+          "size_bytes": 2791
+        },
+        {
+          "name": "identity.py",
+          "type": "file",
+          "extension": ".py",
+          "size_bytes": 1076
+        },
+        {
+          "name": "indexes.py",
+          "type": "file",
+          "extension": ".py",
+          "size_bytes": 598
+        },
+        {
+          "name": "models.py",
+          "type": "file",
+          "extension": ".py",
+          "size_bytes": 1612
+        },
+        {
+          "name": "patterns.py",
+          "type": "file",
+          "extension": ".py",
+          "size_bytes": 7554
+        },
+        {
+          "name": "service.py",
+          "type": "file",
+          "extension": ".py",
+          "size_bytes": 7887
+        }
+      ]
+    },
+    {
+      "name": "meditation",
+      "type": "directory",
+      "children": [
+        {
+          "name": "meditation audios",
+          "type": "directory",
+          "children": [
+            {
+              "name": "3",
+              "type": "directory",
+              "children": [
+                {
+                  "name": "301.mp3",
+                  "type": "file",
+                  "extension": ".mp3",
+                  "size_bytes": 7536165
+                },
+                {
+                  "name": "302.mp3",
+                  "type": "file",
+                  "extension": ".mp3",
+                  "size_bytes": 7853061
+                },
+                {
+                  "name": "303 (1).mp3",
+                  "type": "file",
+                  "extension": ".mp3",
+                  "size_bytes": 8987949
+                },
+                {
+                  "name": "303.mp3",
+                  "type": "file",
+                  "extension": ".mp3",
+                  "size_bytes": 8987949
+                },
+                {
+                  "name": "304 (1).mp3",
+                  "type": "file",
+                  "extension": ".mp3",
+                  "size_bytes": 8837037
+                },
+                {
+                  "name": "304.mp3",
+                  "type": "file",
+                  "extension": ".mp3",
+                  "size_bytes": 8837037
+                },
+                {
+                  "name": "305 (1).mp3",
+                  "type": "file",
+                  "extension": ".mp3",
+                  "size_bytes": 9146445
+                },
+                {
+                  "name": "305.mp3",
+                  "type": "file",
+                  "extension": ".mp3",
+                  "size_bytes": 9146445
+                },
+                {
+                  "name": "306 (1).mp3",
+                  "type": "file",
+                  "extension": ".mp3",
+                  "size_bytes": 8363709
+                },
+                {
+                  "name": "306.mp3",
+                  "type": "file",
+                  "extension": ".mp3",
+                  "size_bytes": 8363709
+                },
+                {
+                  "name": "307 (1).mp3",
+                  "type": "file",
+                  "extension": ".mp3",
+                  "size_bytes": 8893101
+                },
+                {
+                  "name": "307.mp3",
+                  "type": "file",
+                  "extension": ".mp3",
+                  "size_bytes": 8893101
+                },
+                {
+                  "name": "308.mp3",
+                  "type": "file",
+                  "extension": ".mp3",
+                  "size_bytes": 8554989
+                },
+                {
+                  "name": "309 (1).mp3",
+                  "type": "file",
+                  "extension": ".mp3",
+                  "size_bytes": 9011157
+                },
+                {
+                  "name": "309.mp3",
+                  "type": "file",
+                  "extension": ".mp3",
+                  "size_bytes": 9011157
+                },
+                {
+                  "name": "310 (1).mp3",
+                  "type": "file",
+                  "extension": ".mp3",
+                  "size_bytes": 8754381
+                },
+                {
+                  "name": "310.mp3",
+                  "type": "file",
+                  "extension": ".mp3",
+                  "size_bytes": 8754381
+                },
+                {
+                  "name": "311.mp3",
+                  "type": "file",
+                  "extension": ".mp3",
+                  "size_bytes": 2974152
+                },
+                {
+                  "name": "312.mp3",
+                  "type": "file",
+                  "extension": ".mp3",
+                  "size_bytes": 9146445
+                },
+                {
+                  "name": "313 (1).mp3",
+                  "type": "file",
+                  "extension": ".mp3",
+                  "size_bytes": 8554989
+                },
+                {
+                  "name": "313.mp3",
+                  "type": "file",
+                  "extension": ".mp3",
+                  "size_bytes": 8554989
+                },
+                {
+                  "name": "314.mp3",
+                  "type": "file",
+                  "extension": ".mp3",
+                  "size_bytes": 3666648
+                },
+                {
+                  "name": "315.mp3",
+                  "type": "file",
+                  "extension": ".mp3",
+                  "size_bytes": 3907824
+                },
+                {
+                  "name": "316.mp3",
+                  "type": "file",
+                  "extension": ".mp3",
+                  "size_bytes": 3809520
+                },
+                {
+                  "name": "317.mp3",
+                  "type": "file",
+                  "extension": ".mp3",
+                  "size_bytes": 4079184
+                },
+                {
+                  "name": "318.mp3",
+                  "type": "file",
+                  "extension": ".mp3",
+                  "size_bytes": 3682536
+                },
+                {
+                  "name": "319.mp3",
+                  "type": "file",
+                  "extension": ".mp3",
+                  "size_bytes": 3658752
+                },
+                {
+                  "name": "320 (1).mp3",
+                  "type": "file",
+                  "extension": ".mp3",
+                  "size_bytes": 3725064
+                },
+                {
+                  "name": "320.mp3",
+                  "type": "file",
+                  "extension": ".mp3",
+                  "size_bytes": 3725064
+                },
+                {
+                  "name": "321.mp3",
+                  "type": "file",
+                  "extension": ".mp3",
+                  "size_bytes": 2968320
+                },
+                {
+                  "name": "322.mp3",
+                  "type": "file",
+                  "extension": ".mp3",
+                  "size_bytes": 2906712
+                },
+                {
+                  "name": "323.mp3",
+                  "type": "file",
+                  "extension": ".mp3",
+                  "size_bytes": 2785104
+                },
+                {
+                  "name": "324.mp3",
+                  "type": "file",
+                  "extension": ".mp3",
+                  "size_bytes": 3300874
+                },
+                {
+                  "name": "326.mp3",
+                  "type": "file",
+                  "extension": ".mp3",
+                  "size_bytes": 4317000
+                },
+                {
+                  "name": "327.mp3",
+                  "type": "file",
+                  "extension": ".mp3",
+                  "size_bytes": 4019448
+                },
+                {
+                  "name": "328.mp3",
+                  "type": "file",
+                  "extension": ".mp3",
+                  "size_bytes": 3837264
+                },
+                {
+                  "name": "329.mp3",
+                  "type": "file",
+                  "extension": ".mp3",
+                  "size_bytes": 4025664
+                },
+                {
+                  "name": "330.mp3",
+                  "type": "file",
+                  "extension": ".mp3",
+                  "size_bytes": 3969072
+                },
+                {
+                  "name": "331.mp3",
+                  "type": "file",
+                  "extension": ".mp3",
+                  "size_bytes": 3691872
+                },
+                {
+                  "name": "332.mp3",
+                  "type": "file",
+                  "extension": ".mp3",
+                  "size_bytes": 4059792
+                },
+                {
+                  "name": "333.mp3",
+                  "type": "file",
+                  "extension": ".mp3",
+                  "size_bytes": 3842400
+                },
+                {
+                  "name": "334mp3",
+                  "type": "file",
+                  "extension": "",
+                  "size_bytes": 3626232
+                },
+                {
+                  "name": "335.mp3",
+                  "type": "file",
+                  "extension": ".mp3",
+                  "size_bytes": 3871368
+                },
+                {
+                  "name": "336.mp3",
+                  "type": "file",
+                  "extension": ".mp3",
+                  "size_bytes": 4775256
+                },
+                {
+                  "name": "337 (1).mp3",
+                  "type": "file",
+                  "extension": ".mp3",
+                  "size_bytes": 5596752
+                },
+                {
+                  "name": "337.mp3",
+                  "type": "file",
+                  "extension": ".mp3",
+                  "size_bytes": 5596752
+                },
+                {
+                  "name": "338.mp3",
+                  "type": "file",
+                  "extension": ".mp3",
+                  "size_bytes": 3357096
+                },
+                {
+                  "name": "339.mp3",
+                  "type": "file",
+                  "extension": ".mp3",
+                  "size_bytes": 3663576
+                },
+                {
+                  "name": "340.mp3",
+                  "type": "file",
+                  "extension": ".mp3",
+                  "size_bytes": 3445440
+                },
+                {
+                  "name": "341.mp3",
+                  "type": "file",
+                  "extension": ".mp3",
+                  "size_bytes": 3381264
+                },
+                {
+                  "name": "342.mp3",
+                  "type": "file",
+                  "extension": ".mp3",
+                  "size_bytes": 3471576
+                },
+                {
+                  "name": "343.mp3",
+                  "type": "file",
+                  "extension": ".mp3",
+                  "size_bytes": 4515672
+                },
+                {
+                  "name": "344.mp3",
+                  "type": "file",
+                  "extension": ".mp3",
+                  "size_bytes": 3798720
+                },
+                {
+                  "name": "345.mp3",
+                  "type": "file",
+                  "extension": ".mp3",
+                  "size_bytes": 3814344
+                },
+                {
+                  "name": "346.mp3",
+                  "type": "file",
+                  "extension": ".mp3",
+                  "size_bytes": 3300874
+                },
+                {
+                  "name": "347.mp3",
+                  "type": "file",
+                  "extension": ".mp3",
+                  "size_bytes": 9370407
+                },
+                {
+                  "name": "348.mp3",
+                  "type": "file",
+                  "extension": ".mp3",
+                  "size_bytes": 8325877
+                },
+                {
+                  "name": "349.mp3",
+                  "type": "file",
+                  "extension": ".mp3",
+                  "size_bytes": 9056991
+                },
+                {
+                  "name": "350.mp3",
+                  "type": "file",
+                  "extension": ".mp3",
+                  "size_bytes": 16383616
+                },
+                {
+                  "name": "351.mp3",
+                  "type": "file",
+                  "extension": ".mp3",
+                  "size_bytes": 4028400
+                },
+                {
+                  "name": "352.mp3",
+                  "type": "file",
+                  "extension": ".mp3",
+                  "size_bytes": 3815352
+                },
+                {
+                  "name": "353.mp3",
+                  "type": "file",
+                  "extension": ".mp3",
+                  "size_bytes": 9593500
+                },
+                {
+                  "name": "356.mp3",
+                  "type": "file",
+                  "extension": ".mp3",
+                  "size_bytes": 3048264
+                },
+                {
+                  "name": "357.mp3",
+                  "type": "file",
+                  "extension": ".mp3",
+                  "size_bytes": 2982696
+                },
+                {
+                  "name": "358.mp3",
+                  "type": "file",
+                  "extension": ".mp3",
+                  "size_bytes": 2904288
+                },
+                {
+                  "name": "359.mp3",
+                  "type": "file",
+                  "extension": ".mp3",
+                  "size_bytes": 6549684
+                },
+                {
+                  "name": "Untitled document.docx",
+                  "type": "file",
+                  "extension": ".docx",
+                  "size_bytes": 16128
+                }
+              ]
+            },
+            {
+              "name": "101.mp3",
+              "type": "file",
+              "extension": ".mp3",
+              "size_bytes": 1533984
+            },
+            {
+              "name": "102.mp3",
+              "type": "file",
+              "extension": ".mp3",
+              "size_bytes": 1971696
+            },
+            {
+              "name": "103.mp3",
+              "type": "file",
+              "extension": ".mp3",
+              "size_bytes": 1663104
+            },
+            {
+              "name": "104.mp3",
+              "type": "file",
+              "extension": ".mp3",
+              "size_bytes": 2745552
+            },
+            {
+              "name": "1201.mp3",
+              "type": "file",
+              "extension": ".mp3",
+              "size_bytes": 4801141
+            },
+            {
+              "name": "1202.mp3",
+              "type": "file",
+              "extension": ".mp3",
+              "size_bytes": 9387407
+            },
+            {
+              "name": "201.mp3",
+              "type": "file",
+              "extension": ".mp3",
+              "size_bytes": 3937848
+            },
+            {
+              "name": "202.mp3",
+              "type": "file",
+              "extension": ".mp3",
+              "size_bytes": 3492672
+            },
+            {
+              "name": "203.mp3",
+              "type": "file",
+              "extension": ".mp3",
+              "size_bytes": 3437232
+            },
+            {
+              "name": "204.mp3",
+              "type": "file",
+              "extension": ".mp3",
+              "size_bytes": 3567048
+            },
+            {
+              "name": "205.mp3",
+              "type": "file",
+              "extension": ".mp3",
+              "size_bytes": 3544344
+            },
+            {
+              "name": "206.mp3",
+              "type": "file",
+              "extension": ".mp3",
+              "size_bytes": 3590472
+            },
+            {
+              "name": "207.mp3",
+              "type": "file",
+              "extension": ".mp3",
+              "size_bytes": 3622272
+            },
+            {
+              "name": "208.mp3",
+              "type": "file",
+              "extension": ".mp3",
+              "size_bytes": 3945672
+            },
+            {
+              "name": "209.mp3",
+              "type": "file",
+              "extension": ".mp3",
+              "size_bytes": 3921960
+            },
+            {
+              "name": "210.mp3",
+              "type": "file",
+              "extension": ".mp3",
+              "size_bytes": 3182592
+            },
+            {
+              "name": "301.mp3",
+              "type": "file",
+              "extension": ".mp3",
+              "size_bytes": 7536165
+            },
+            {
+              "name": "302.mp3",
+              "type": "file",
+              "extension": ".mp3",
+              "size_bytes": 7853061
+            },
+            {
+              "name": "303 (1).mp3",
+              "type": "file",
+              "extension": ".mp3",
+              "size_bytes": 8987949
+            },
+            {
+              "name": "303.mp3",
+              "type": "file",
+              "extension": ".mp3",
+              "size_bytes": 8987949
+            },
+            {
+              "name": "304 (1).mp3",
+              "type": "file",
+              "extension": ".mp3",
+              "size_bytes": 8837037
+            },
+            {
+              "name": "304.mp3",
+              "type": "file",
+              "extension": ".mp3",
+              "size_bytes": 8837037
+            },
+            {
+              "name": "305 (1).mp3",
+              "type": "file",
+              "extension": ".mp3",
+              "size_bytes": 9146445
+            },
+            {
+              "name": "305.mp3",
+              "type": "file",
+              "extension": ".mp3",
+              "size_bytes": 9146445
+            },
+            {
+              "name": "306 (1).mp3",
+              "type": "file",
+              "extension": ".mp3",
+              "size_bytes": 8363709
+            },
+            {
+              "name": "306.mp3",
+              "type": "file",
+              "extension": ".mp3",
+              "size_bytes": 8363709
+            },
+            {
+              "name": "307 (1).mp3",
+              "type": "file",
+              "extension": ".mp3",
+              "size_bytes": 8893101
+            },
+            {
+              "name": "307.mp3",
+              "type": "file",
+              "extension": ".mp3",
+              "size_bytes": 8893101
+            },
+            {
+              "name": "308.mp3",
+              "type": "file",
+              "extension": ".mp3",
+              "size_bytes": 8554989
+            },
+            {
+              "name": "309 (1).mp3",
+              "type": "file",
+              "extension": ".mp3",
+              "size_bytes": 9011157
+            },
+            {
+              "name": "309.mp3",
+              "type": "file",
+              "extension": ".mp3",
+              "size_bytes": 9011157
+            },
+            {
+              "name": "310 (1).mp3",
+              "type": "file",
+              "extension": ".mp3",
+              "size_bytes": 8754381
+            },
+            {
+              "name": "310.mp3",
+              "type": "file",
+              "extension": ".mp3",
+              "size_bytes": 8754381
+            },
+            {
+              "name": "311.mp3",
+              "type": "file",
+              "extension": ".mp3",
+              "size_bytes": 2974152
+            },
+            {
+              "name": "312.mp3",
+              "type": "file",
+              "extension": ".mp3",
+              "size_bytes": 9146445
+            },
+            {
+              "name": "313 (1).mp3",
+              "type": "file",
+              "extension": ".mp3",
+              "size_bytes": 8554989
+            },
+            {
+              "name": "313.mp3",
+              "type": "file",
+              "extension": ".mp3",
+              "size_bytes": 8554989
+            },
+            {
+              "name": "314.mp3",
+              "type": "file",
+              "extension": ".mp3",
+              "size_bytes": 3666648
+            },
+            {
+              "name": "315.mp3",
+              "type": "file",
+              "extension": ".mp3",
+              "size_bytes": 3907824
+            },
+            {
+              "name": "316.mp3",
+              "type": "file",
+              "extension": ".mp3",
+              "size_bytes": 3809520
+            },
+            {
+              "name": "317.mp3",
+              "type": "file",
+              "extension": ".mp3",
+              "size_bytes": 4079184
+            },
+            {
+              "name": "318.mp3",
+              "type": "file",
+              "extension": ".mp3",
+              "size_bytes": 3682536
+            },
+            {
+              "name": "319.mp3",
+              "type": "file",
+              "extension": ".mp3",
+              "size_bytes": 3658752
+            },
+            {
+              "name": "320 (1).mp3",
+              "type": "file",
+              "extension": ".mp3",
+              "size_bytes": 3725064
+            },
+            {
+              "name": "320.mp3",
+              "type": "file",
+              "extension": ".mp3",
+              "size_bytes": 3725064
+            },
+            {
+              "name": "321.mp3",
+              "type": "file",
+              "extension": ".mp3",
+              "size_bytes": 2968320
+            },
+            {
+              "name": "322.mp3",
+              "type": "file",
+              "extension": ".mp3",
+              "size_bytes": 2906712
+            },
+            {
+              "name": "323.mp3",
+              "type": "file",
+              "extension": ".mp3",
+              "size_bytes": 2785104
+            },
+            {
+              "name": "324.mp3",
+              "type": "file",
+              "extension": ".mp3",
+              "size_bytes": 3300874
+            },
+            {
+              "name": "326.mp3",
+              "type": "file",
+              "extension": ".mp3",
+              "size_bytes": 4317000
+            },
+            {
+              "name": "327.mp3",
+              "type": "file",
+              "extension": ".mp3",
+              "size_bytes": 4019448
+            },
+            {
+              "name": "328.mp3",
+              "type": "file",
+              "extension": ".mp3",
+              "size_bytes": 3837264
+            },
+            {
+              "name": "329.mp3",
+              "type": "file",
+              "extension": ".mp3",
+              "size_bytes": 4025664
+            },
+            {
+              "name": "330.mp3",
+              "type": "file",
+              "extension": ".mp3",
+              "size_bytes": 3969072
+            },
+            {
+              "name": "331.mp3",
+              "type": "file",
+              "extension": ".mp3",
+              "size_bytes": 3691872
+            },
+            {
+              "name": "332.mp3",
+              "type": "file",
+              "extension": ".mp3",
+              "size_bytes": 4059792
+            },
+            {
+              "name": "333.mp3",
+              "type": "file",
+              "extension": ".mp3",
+              "size_bytes": 3842400
+            },
+            {
+              "name": "335.mp3",
+              "type": "file",
+              "extension": ".mp3",
+              "size_bytes": 3871368
+            },
+            {
+              "name": "336.mp3",
+              "type": "file",
+              "extension": ".mp3",
+              "size_bytes": 4775256
+            },
+            {
+              "name": "337 (1).mp3",
+              "type": "file",
+              "extension": ".mp3",
+              "size_bytes": 5596752
+            },
+            {
+              "name": "337.mp3",
+              "type": "file",
+              "extension": ".mp3",
+              "size_bytes": 5596752
+            },
+            {
+              "name": "338.mp3",
+              "type": "file",
+              "extension": ".mp3",
+              "size_bytes": 3357096
+            },
+            {
+              "name": "339.mp3",
+              "type": "file",
+              "extension": ".mp3",
+              "size_bytes": 3663576
+            },
+            {
+              "name": "340.mp3",
+              "type": "file",
+              "extension": ".mp3",
+              "size_bytes": 3445440
+            },
+            {
+              "name": "341.mp3",
+              "type": "file",
+              "extension": ".mp3",
+              "size_bytes": 3381264
+            },
+            {
+              "name": "342.mp3",
+              "type": "file",
+              "extension": ".mp3",
+              "size_bytes": 3471576
+            },
+            {
+              "name": "343.mp3",
+              "type": "file",
+              "extension": ".mp3",
+              "size_bytes": 4515672
+            },
+            {
+              "name": "344.mp3",
+              "type": "file",
+              "extension": ".mp3",
+              "size_bytes": 3798720
+            },
+            {
+              "name": "345.mp3",
+              "type": "file",
+              "extension": ".mp3",
+              "size_bytes": 3814344
+            },
+            {
+              "name": "346.mp3",
+              "type": "file",
+              "extension": ".mp3",
+              "size_bytes": 3300874
+            },
+            {
+              "name": "347.mp3",
+              "type": "file",
+              "extension": ".mp3",
+              "size_bytes": 9370407
+            },
+            {
+              "name": "348.mp3",
+              "type": "file",
+              "extension": ".mp3",
+              "size_bytes": 8325877
+            },
+            {
+              "name": "349.mp3",
+              "type": "file",
+              "extension": ".mp3",
+              "size_bytes": 9056991
+            },
+            {
+              "name": "350.mp3",
+              "type": "file",
+              "extension": ".mp3",
+              "size_bytes": 16383616
+            },
+            {
+              "name": "351.mp3",
+              "type": "file",
+              "extension": ".mp3",
+              "size_bytes": 4028400
+            },
+            {
+              "name": "352.mp3",
+              "type": "file",
+              "extension": ".mp3",
+              "size_bytes": 3815352
+            },
+            {
+              "name": "353.mp3",
+              "type": "file",
+              "extension": ".mp3",
+              "size_bytes": 9593500
+            },
+            {
+              "name": "356.mp3",
+              "type": "file",
+              "extension": ".mp3",
+              "size_bytes": 3048264
+            },
+            {
+              "name": "357.mp3",
+              "type": "file",
+              "extension": ".mp3",
+              "size_bytes": 2982696
+            },
+            {
+              "name": "358.mp3",
+              "type": "file",
+              "extension": ".mp3",
+              "size_bytes": 2904288
+            },
+            {
+              "name": "359.mp3",
+              "type": "file",
+              "extension": ".mp3",
+              "size_bytes": 6549684
+            },
+            {
+              "name": "Untitled document.docx",
+              "type": "file",
+              "extension": ".docx",
+              "size_bytes": 9238
+            }
+          ]
+        },
+        {
+          "name": "__init__.py",
+          "type": "file",
+          "extension": ".py",
+          "size_bytes": 72
+        },
+        {
+          "name": "audio.py",
+          "type": "file",
+          "extension": ".py",
+          "size_bytes": 3352
+        },
+        {
+          "name": "data.py",
+          "type": "file",
+          "extension": ".py",
+          "size_bytes": 24164
+        },
+        {
+          "name": "metadata.py",
+          "type": "file",
+          "extension": ".py",
+          "size_bytes": 9134
+        }
+      ]
+    },
+    {
+      "name": "reports",
+      "type": "directory",
+      "children": [
+        {
+          "name": "__init__.py",
+          "type": "file",
+          "extension": ".py",
+          "size_bytes": 368
+        },
+        {
+          "name": "context.py",
+          "type": "file",
+          "extension": ".py",
+          "size_bytes": 2203
+        },
+        {
+          "name": "indexes.py",
+          "type": "file",
+          "extension": ".py",
+          "size_bytes": 565
+        },
+        {
+          "name": "models.py",
+          "type": "file",
+          "extension": ".py",
+          "size_bytes": 3659
+        },
+        {
+          "name": "resolve.py",
+          "type": "file",
+          "extension": ".py",
+          "size_bytes": 3332
+        },
+        {
+          "name": "store.py",
+          "type": "file",
+          "extension": ".py",
+          "size_bytes": 5395
+        }
+      ]
+    },
+    {
+      "name": "scripts",
+      "type": "directory",
+      "children": [
+        {
+          "name": "bootstrap_apm.py",
+          "type": "file",
+          "extension": ".py",
+          "size_bytes": 919
+        },
+        {
+          "name": "consolidate_memory.py",
+          "type": "file",
+          "extension": ".py",
+          "size_bytes": 1357
+        },
+        {
+          "name": "migrate_neo4j_to_mongodb.py",
+          "type": "file",
+          "extension": ".py",
+          "size_bytes": 6105
+        },
+        {
+          "name": "seed_dummy_data.py",
+          "type": "file",
+          "extension": ".py",
+          "size_bytes": 10135
+        },
+        {
+          "name": "seed_meditation_demo.py",
+          "type": "file",
+          "extension": ".py",
+          "size_bytes": 8318
+        }
+      ]
+    },
+    {
+      "name": "services",
+      "type": "directory",
+      "children": [
+        {
+          "name": "meditation",
+          "type": "directory",
+          "children": [
+            {
+              "name": "__init__.py",
+              "type": "file",
+              "extension": ".py",
+              "size_bytes": 350
+            },
+            {
+              "name": "cards.py",
+              "type": "file",
+              "extension": ".py",
+              "size_bytes": 3546
+            },
+            {
+              "name": "demo_profiles.py",
+              "type": "file",
+              "extension": ".py",
+              "size_bytes": 4758
+            },
+            {
+              "name": "engine.py",
+              "type": "file",
+              "extension": ".py",
+              "size_bytes": 27836
+            },
+            {
+              "name": "service.py",
+              "type": "file",
+              "extension": ".py",
+              "size_bytes": 19842
+            }
+          ]
+        },
+        {
+          "name": "patterns",
+          "type": "directory",
+          "children": [
+            {
+              "name": "__init__.py",
+              "type": "file",
+              "extension": ".py",
+              "size_bytes": 517
+            },
+            {
+              "name": "adapters.py",
+              "type": "file",
+              "extension": ".py",
+              "size_bytes": 13790
+            },
+            {
+              "name": "detect.py",
+              "type": "file",
+              "extension": ".py",
+              "size_bytes": 18021
+            },
+            {
+              "name": "feedback.py",
+              "type": "file",
+              "extension": ".py",
+              "size_bytes": 3669
+            },
+            {
+              "name": "retrieve.py",
+              "type": "file",
+              "extension": ".py",
+              "size_bytes": 4460
+            },
+            {
+              "name": "score.py",
+              "type": "file",
+              "extension": ".py",
+              "size_bytes": 2835
+            },
+            {
+              "name": "service.py",
+              "type": "file",
+              "extension": ".py",
+              "size_bytes": 5500
+            },
+            {
+              "name": "store.py",
+              "type": "file",
+              "extension": ".py",
+              "size_bytes": 6632
+            },
+            {
+              "name": "window.py",
+              "type": "file",
+              "extension": ".py",
+              "size_bytes": 10031
+            }
+          ]
+        },
+        {
+          "name": "__init__.py",
+          "type": "file",
+          "extension": ".py",
+          "size_bytes": 19
+        },
+        {
+          "name": "action_cards.py",
+          "type": "file",
+          "extension": ".py",
+          "size_bytes": 8096
+        },
+        {
+          "name": "apm.py",
+          "type": "file",
+          "extension": ".py",
+          "size_bytes": 25825
+        },
+        {
+          "name": "chat_history.py",
+          "type": "file",
+          "extension": ".py",
+          "size_bytes": 11796
+        },
+        {
+          "name": "context.py",
+          "type": "file",
+          "extension": ".py",
+          "size_bytes": 17348
+        },
+        {
+          "name": "extraction.py",
+          "type": "file",
+          "extension": ".py",
+          "size_bytes": 20986
+        },
+        {
+          "name": "graph.py",
+          "type": "file",
+          "extension": ".py",
+          "size_bytes": 25735
+        },
+        {
+          "name": "graph_rag.py",
+          "type": "file",
+          "extension": ".py",
+          "size_bytes": 7917
+        },
+        {
+          "name": "inner_council.py",
+          "type": "file",
+          "extension": ".py",
+          "size_bytes": 9785
+        },
+        {
+          "name": "language_preferences.py",
+          "type": "file",
+          "extension": ".py",
+          "size_bytes": 10403
+        },
+        {
+          "name": "marks.py",
+          "type": "file",
+          "extension": ".py",
+          "size_bytes": 4381
+        },
+        {
+          "name": "mongo_graph.py",
+          "type": "file",
+          "extension": ".py",
+          "size_bytes": 28102
+        },
+        {
+          "name": "risk_assessor.py",
+          "type": "file",
+          "extension": ".py",
+          "size_bytes": 4002
+        },
+        {
+          "name": "security.py",
+          "type": "file",
+          "extension": ".py",
+          "size_bytes": 11073
+        },
+        {
+          "name": "session_report.py",
+          "type": "file",
+          "extension": ".py",
+          "size_bytes": 11420
+        },
+        {
+          "name": "session_resume.py",
+          "type": "file",
+          "extension": ".py",
+          "size_bytes": 8092
+        },
+        {
+          "name": "streaming.py",
+          "type": "file",
+          "extension": ".py",
+          "size_bytes": 15636
+        },
+        {
+          "name": "users.py",
+          "type": "file",
+          "extension": ".py",
+          "size_bytes": 8056
+        }
+      ]
+    },
+    {
+      "name": "sleep",
+      "type": "directory",
+      "children": [
+        {
+          "name": "__init__.py",
+          "type": "file",
+          "extension": ".py",
+          "size_bytes": 319
+        },
+        {
+          "name": "context.py",
+          "type": "file",
+          "extension": ".py",
+          "size_bytes": 2886
+        },
+        {
+          "name": "identity.py",
+          "type": "file",
+          "extension": ".py",
+          "size_bytes": 1280
+        },
+        {
+          "name": "indexes.py",
+          "type": "file",
+          "extension": ".py",
+          "size_bytes": 391
+        },
+        {
+          "name": "patterns.py",
+          "type": "file",
+          "extension": ".py",
+          "size_bytes": 10280
+        },
+        {
+          "name": "reader.py",
+          "type": "file",
+          "extension": ".py",
+          "size_bytes": 5719
+        },
+        {
+          "name": "writer.py",
+          "type": "file",
+          "extension": ".py",
+          "size_bytes": 1763
+        }
+      ]
+    },
+    {
+      "name": "student_memory",
+      "type": "directory",
+      "children": [
+        {
+          "name": "__init__.py",
+          "type": "file",
+          "extension": ".py",
+          "size_bytes": 484
+        },
+        {
+          "name": "context.py",
+          "type": "file",
+          "extension": ".py",
+          "size_bytes": 1113
+        },
+        {
+          "name": "indexes.py",
+          "type": "file",
+          "extension": ".py",
+          "size_bytes": 699
+        },
+        {
+          "name": "models.py",
+          "type": "file",
+          "extension": ".py",
+          "size_bytes": 2037
+        },
+        {
+          "name": "store.py",
+          "type": "file",
+          "extension": ".py",
+          "size_bytes": 5881
+        }
+      ]
+    },
+    {
+      "name": "tasks",
+      "type": "directory",
+      "children": [
+        {
+          "name": "__init__.py",
+          "type": "file",
+          "extension": ".py",
+          "size_bytes": 157
+        },
+        {
+          "name": "context.py",
+          "type": "file",
+          "extension": ".py",
+          "size_bytes": 2207
+        },
+        {
+          "name": "identity.py",
+          "type": "file",
+          "extension": ".py",
+          "size_bytes": 1078
+        },
+        {
+          "name": "indexes.py",
+          "type": "file",
+          "extension": ".py",
+          "size_bytes": 283
+        },
+        {
+          "name": "store.py",
+          "type": "file",
+          "extension": ".py",
+          "size_bytes": 12044
+        },
+        {
+          "name": "validate.py",
+          "type": "file",
+          "extension": ".py",
+          "size_bytes": 1710
+        }
+      ]
+    },
+    {
+      "name": "tests",
+      "type": "directory",
+      "children": [
+        {
+          "name": "__init__.py",
+          "type": "file",
+          "extension": ".py",
+          "size_bytes": 16
+        },
+        {
+          "name": "test_action_cards.py",
+          "type": "file",
+          "extension": ".py",
+          "size_bytes": 6724
+        },
+        {
+          "name": "test_apm.py",
+          "type": "file",
+          "extension": ".py",
+          "size_bytes": 9822
+        },
+        {
+          "name": "test_auth.py",
+          "type": "file",
+          "extension": ".py",
+          "size_bytes": 2660
+        },
+        {
+          "name": "test_chat_history.py",
+          "type": "file",
+          "extension": ".py",
+          "size_bytes": 8365
+        },
+        {
+          "name": "test_consultation.py",
+          "type": "file",
+          "extension": ".py",
+          "size_bytes": 9072
+        },
+        {
+          "name": "test_extraction_sanitize.py",
+          "type": "file",
+          "extension": ".py",
+          "size_bytes": 1696
+        },
+        {
+          "name": "test_fallback.py",
+          "type": "file",
+          "extension": ".py",
+          "size_bytes": 2080
+        },
+        {
+          "name": "test_graph.py",
+          "type": "file",
+          "extension": ".py",
+          "size_bytes": 4462
+        },
+        {
+          "name": "test_graph_rag.py",
+          "type": "file",
+          "extension": ".py",
+          "size_bytes": 2483
+        },
+        {
+          "name": "test_inner_council.py",
+          "type": "file",
+          "extension": ".py",
+          "size_bytes": 1792
+        },
+        {
+          "name": "test_journal.py",
+          "type": "file",
+          "extension": ".py",
+          "size_bytes": 15126
+        },
+        {
+          "name": "test_language.py",
+          "type": "file",
+          "extension": ".py",
+          "size_bytes": 10768
+        },
+        {
+          "name": "test_llm_provider.py",
+          "type": "file",
+          "extension": ".py",
+          "size_bytes": 2311
+        },
+        {
+          "name": "test_marks.py",
+          "type": "file",
+          "extension": ".py",
+          "size_bytes": 1520
+        },
+        {
+          "name": "test_meditation.py",
+          "type": "file",
+          "extension": ".py",
+          "size_bytes": 19848
+        },
+        {
+          "name": "test_mongo_graph.py",
+          "type": "file",
+          "extension": ".py",
+          "size_bytes": 7094
+        },
+        {
+          "name": "test_patterns.py",
+          "type": "file",
+          "extension": ".py",
+          "size_bytes": 12563
+        },
+        {
+          "name": "test_prompts.py",
+          "type": "file",
+          "extension": ".py",
+          "size_bytes": 3589
+        },
+        {
+          "name": "test_reports.py",
+          "type": "file",
+          "extension": ".py",
+          "size_bytes": 9083
+        },
+        {
+          "name": "test_risk_window.py",
+          "type": "file",
+          "extension": ".py",
+          "size_bytes": 5614
+        },
+        {
+          "name": "test_security.py",
+          "type": "file",
+          "extension": ".py",
+          "size_bytes": 1510
+        },
+        {
+          "name": "test_session_resume.py",
+          "type": "file",
+          "extension": ".py",
+          "size_bytes": 2614
+        },
+        {
+          "name": "test_sleep.py",
+          "type": "file",
+          "extension": ".py",
+          "size_bytes": 17846
+        },
+        {
+          "name": "test_streaming.py",
+          "type": "file",
+          "extension": ".py",
+          "size_bytes": 6833
+        },
+        {
+          "name": "test_student_memory.py",
+          "type": "file",
+          "extension": ".py",
+          "size_bytes": 6384
+        },
+        {
+          "name": "test_tasks.py",
+          "type": "file",
+          "extension": ".py",
+          "size_bytes": 13502
+        },
+        {
+          "name": "test_tracking.py",
+          "type": "file",
+          "extension": ".py",
+          "size_bytes": 11974
+        }
+      ]
+    },
+    {
+      "name": "tracking",
+      "type": "directory",
+      "children": [
+        {
+          "name": "__init__.py",
+          "type": "file",
+          "extension": ".py",
+          "size_bytes": 718
+        },
+        {
+          "name": "habits.py",
+          "type": "file",
+          "extension": ".py",
+          "size_bytes": 11460
+        },
+        {
+          "name": "indexes.py",
+          "type": "file",
+          "extension": ".py",
+          "size_bytes": 1097
+        },
+        {
+          "name": "mood.py",
+          "type": "file",
+          "extension": ".py",
+          "size_bytes": 5154
+        }
+      ]
+    },
+    {
+      "name": ".env",
+      "type": "file",
+      "extension": "",
+      "size_bytes": 1310
+    },
+    {
+      "name": ".env.example",
+      "type": "file",
+      "extension": ".example",
+      "size_bytes": 3164
+    },
+    {
+      "name": ".gitignore",
+      "type": "file",
+      "extension": "",
+      "size_bytes": 68
+    },
+    {
+      "name": "app.py",
+      "type": "file",
+      "extension": ".py",
+      "size_bytes": 36518
+    },
+    {
+      "name": "config.py",
+      "type": "file",
+      "extension": ".py",
+      "size_bytes": 7932
+    },
+    {
+      "name": "crontab.txt",
+      "type": "file",
+      "extension": ".txt",
+      "size_bytes": 0
+    },
+    {
+      "name": "database.py",
+      "type": "file",
+      "extension": ".py",
+      "size_bytes": 6450
+    },
+    {
+      "name": "llm_provider.py",
+      "type": "file",
+      "extension": ".py",
+      "size_bytes": 5867
+    },
+    {
+      "name": "mental_schema.py",
+      "type": "file",
+      "extension": ".py",
+      "size_bytes": 4492
+    },
+    {
+      "name": "notes.txt",
+      "type": "file",
+      "extension": ".txt",
+      "size_bytes": 157
+    },
+    {
+      "name": "project_structure.txt",
+      "type": "file",
+      "extension": ".txt",
+      "size_bytes": 9711
+    },
+    {
+      "name": "prompts.py",
+      "type": "file",
+      "extension": ".py",
+      "size_bytes": 29764
+    },
+    {
+      "name": "README.md",
+      "type": "file",
+      "extension": ".md",
+      "size_bytes": 28530
+    },
+    {
+      "name": "requirements.txt",
+      "type": "file",
+      "extension": ".txt",
+      "size_bytes": 1195
+    },
+    {
+      "name": "run.py",
+      "type": "file",
+      "extension": ".py",
+      "size_bytes": 1257
+    },
+    {
+      "name": "scheduler.py",
+      "type": "file",
+      "extension": ".py",
+      "size_bytes": 254
+    },
+    {
+      "name": "schemas.py",
+      "type": "file",
+      "extension": ".py",
+      "size_bytes": 23887
+    },
+    {
+      "name": "streamlit_app.py",
+      "type": "file",
+      "extension": ".py",
+      "size_bytes": 31855
+    },
+    {
+      "name": "verify_tracking.py",
+      "type": "file",
+      "extension": ".py",
+      "size_bytes": 1717
+    }
+  ]
+}

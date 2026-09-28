@@ -23,17 +23,16 @@ FastAPI dependency functions
     Injects the shared ``AsyncIOMotorDatabase`` handle into route handlers.
 """
 
-import logging
 from contextlib import asynccontextmanager
 from typing import AsyncGenerator
 
-from fastapi import FastAPI, Request
+from fastapi import FastAPI
 from motor.motor_asyncio import AsyncIOMotorClient, AsyncIOMotorDatabase
+from starlette.requests import HTTPConnection
 
+from config.config import logger
 from db.indexes import ensure_all_indexes
 from db.mongo import create_mongo_client, database_name
-
-logger = logging.getLogger(__name__)
 
 
 @asynccontextmanager
@@ -88,26 +87,11 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     logger.info("MongoDB connection closed.")
 
 
-def get_db(request: Request) -> AsyncIOMotorDatabase:
+def get_db(connection: HTTPConnection) -> AsyncIOMotorDatabase:
     """
     FastAPI dependency — injects the shared Motor database instance.
 
-    Intended for use with ``Depends(get_db)`` in route function signatures.
-
-    Parameters
-    ----------
-    request : Request
-        The current FastAPI request object.
-
-    Returns
-    -------
-    AsyncIOMotorDatabase
-        The shared Motor database handle for the configured database.
-
-    Raises
-    ------
-    AttributeError
-        If called before lifespan startup has completed (should not happen
-        in normal operation).
+    Works for HTTP requests and WebSocket connections (both are
+    ``HTTPConnection``), so voice and chat share the same override in tests.
     """
-    return request.app.state.db
+    return connection.app.state.db

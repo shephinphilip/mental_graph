@@ -6,15 +6,13 @@ Report tasks are appended. Existing rows are not replaced.
 
 from __future__ import annotations
 
-import logging
 import secrets
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
+from config.config import logger
 from tasks.identity import identity_keys, identity_query, owns_claimed_id
 from tasks.validate import validate_proposals
-
-logger = logging.getLogger(__name__)
 
 COLLECTION = "daily_tasks"
 

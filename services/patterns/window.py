@@ -9,14 +9,13 @@ Acute crisis keywords are recorded but do not reinforce this pattern.
 
 from __future__ import annotations
 
-import logging
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional
 
 from motor.motor_asyncio import AsyncIOMotorDatabase
 
-from config import get_settings
+from config.config import get_settings, logger
 from schemas import PatternStatus, PatternType
 from services.patterns.detect import fingerprint
 from services.patterns.store import (
@@ -25,8 +24,6 @@ from services.patterns.store import (
     upsert_pattern,
 )
 from services.risk_assessor import RiskScore, score_turn
-
-logger = logging.getLogger(__name__)
 
 RISK_TURNS_COLLECTION = "user_risk_turns"
 PERSISTENT_KEY = "established_persistent_distress"

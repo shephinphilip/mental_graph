@@ -2,14 +2,11 @@
 
 from __future__ import annotations
 
-import logging
 from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional
 
-from config import get_settings
+from config.config import get_settings, logger
 from schemas import PatternStatus
-
-logger = logging.getLogger(__name__)
 
 
 def _as_dt(value: Any) -> Optional[datetime]:

@@ -5,6 +5,8 @@ from __future__ import annotations
 from fastapi import APIRouter, Request
 from fastapi.responses import JSONResponse
 
+from config.config import logger
+
 router = APIRouter(tags=["health"])
 
 
@@ -29,9 +31,11 @@ async def readiness(request: Request):
     """Mongo is reachable. LLM readiness is not required to accept traffic."""
     client = getattr(request.app.state, "mongo_client", None)
     if client is None:
+        logger.warning("Readiness failed reason=mongo_unconfigured")
         return JSONResponse(status_code=503, content={"status": "not_ready", "reason": "mongo_unconfigured"})
     try:
         await client.admin.command("ping")
     except Exception:
+        logger.warning("Readiness failed reason=mongo_unavailable")
         return JSONResponse(status_code=503, content={"status": "not_ready", "reason": "mongo_unavailable"})
     return {"status": "ready"}

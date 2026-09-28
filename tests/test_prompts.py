@@ -16,11 +16,31 @@ def test_format_system_prompt_fills_defaults():
     assert "No academic data available" in text
     assert "No attendance data available" in text
     assert "LISTEN FIRST" in text
-    assert "REFLECTIVE CONTAINMENT" in text
-    assert "CONTEXTUAL UNCERTAINTY" in text
-    assert "WARM BUT NOT HOLLOW" in text
     assert "Never re-greet" in text
-    assert "You are never the crisis" in text.lower() or "NEVER THE CRISIS" in text
+    assert "YOU ARE NEVER THE CRISIS SYSTEM" in text
+    assert "ONE proactive observation" in text
+    assert "Do not quote scores" in text
+    assert "I've noticed" in text
+    assert "do not claim to be a psychiatrist" in text.lower()
+    assert "5–9" in text
+    assert "10–13" in text
+    assert "14–17" in text
+    safety = text.lower()
+    order = [
+        "1. crisis",
+        "2. violence",
+        "3. substance",
+        "4. sexual_harassment",
+        "5. mischievous",
+        "6. sexual_content",
+        "7. farewell",
+        "8. marks",
+        "9. self_harm",
+        "10. abuse",
+        "11. sexual_expression",
+    ]
+    positions = [safety.index(label) for label in order]
+    assert positions == sorted(positions)
 
 
 def test_format_system_prompt_injects_memory_and_graph():
@@ -82,8 +102,9 @@ def test_format_system_prompt_injects_inner_council_stance():
     )
     text = format_system_prompt(response_stance=stance.as_prompt_block())
     assert "INNER COUNCIL" in text
-    assert "Reflective Containment" in text
+    assert "Listen, reflect, validate" in text
     assert "Empathy Agent" in text
+    assert "Reflective Containment" not in text
 
 
 def test_dropped_session_hint_unanswered_user_turn():

@@ -7,13 +7,11 @@ does not choose the language.
 
 from __future__ import annotations
 
-import logging
 import time
 from typing import Any, Dict, Optional
 
+from config.config import logger
 from services.users import get_by_identifier
-
-logger = logging.getLogger(__name__)
 
 SUPPORTED = (
     "ENGLISH",
@@ -134,44 +132,133 @@ def language_rank_code(value: Any) -> str:
     return "en"
 
 
+_SCRIPT_RANGES = {
+    "DEVANAGARI": (0x0900, 0x097F),
+    "BENGALI": (0x0980, 0x09FF),
+    "GURMUKHI": (0x0A00, 0x0A7F),
+    "GUJARATI": (0x0A80, 0x0AFF),
+    "ODIA": (0x0B00, 0x0B7F),
+    "TAMIL": (0x0B80, 0x0BFF),
+    "TELUGU": (0x0C00, 0x0C7F),
+    "KANNADA": (0x0C80, 0x0CFF),
+    "MALAYALAM": (0x0D00, 0x0D7F),
+    "NASTALIQ": (0x0600, 0x06FF),
+}
+
+_ROMAN_EXAMPLES = {
+    "HINDI": "yaar, aaj bahut tension ho rahi hai. Kya hua?",
+    "HINGLISH": "yaar, aaj bahut tension ho rahi hai. Kya hua?",
+    "MALAYALAM": "Hey, innu entha parupadi? Entha sambhavichathu, parayoo.",
+    "TAMIL": "Hey, innaiki enna aachu? Sollu.",
+    "TELUGU": "Hey, ee roju em ayyindi? Cheppu.",
+    "KANNADA": "Hey, ivattu en aaytu? Helu.",
+    "BENGALI": "Hey, aaj ki holo? Bol.",
+    "GUJARATI": "Hey, aaje shu thyu? Keh.",
+    "PUNJABI": "Hey, aaj ki hoya? Dass.",
+    "ODIA": "Hey, aaji kana hela? Kuh.",
+    "URDU": "yaar, aaj bahut tension ho rahi hai. Kya hua?",
+}
+
+
+def default_script(language: str) -> str:
+    """Indian languages default to Roman letters. English stays English."""
+    if language == "ENGLISH":
+        return "LATIN"
+    return "ROMAN"
+
+
+def _contains_range(text: str, start: int, end: int) -> bool:
+    return any(start <= ord(ch) <= end for ch in text or "")
+
+
+def detect_script(language: str, message: str = "", *, opening_turn: bool = False) -> str:
+    """
+    Language and script are separate.
+
+    The preferred language decides the language. The current message decides
+    the script, and only when it is actually written in that language's native
+    letters. A welcome turn and Latin text stay Romanized.
+    """
+    if language == "ENGLISH":
+        return "LATIN"
+    if language == "HINGLISH" or opening_turn or not (message or "").strip():
+        return "ROMAN"
+    native = _SCRIPTS.get(language, "ROMAN")
+    span = _SCRIPT_RANGES.get(native)
+    if span and _contains_range(message, span[0], span[1]):
+        return native
+    return "ROMAN"
+
+
 def language_instruction(resolved: Dict[str, str]) -> str:
     language = resolved.get("resolved_language") or "ENGLISH"
     if language not in SUPPORTED:
         language = "ENGLISH"
-    if language == "HINGLISH":
-        return (
-            "RESPONSE LANGUAGE:\n"
-            "The user's selected language is HINGLISH.\n"
-            "Respond entirely in natural conversational Hindi using Roman script, "
-            "with ordinary WhatsApp-style Hindi-English mixing.\n"
-            "Do not write Devanagari.\n"
-            "Do not switch to English-only because the current message is in English.\n"
-            "Sound like a short WhatsApp chat: warm, simple, not a textbook and not a translation.\n"
-            "Keep phone numbers, official names, and product names unchanged.\n"
-            "Use this same language for the whole reply. Do not change language halfway."
-        )
+    script = resolved.get("resolved_script") or default_script(language)
     if language == "ENGLISH":
         return (
             "RESPONSE LANGUAGE:\n"
+            "LANGUAGE REQUIREMENT\n"
+            "The student's current preferred language is: ENGLISH\n"
+            "The student's current writing/script style is: LATIN\n"
             "The user's selected language is ENGLISH.\n"
             "Respond entirely in casual WhatsApp-style English.\n"
             "Do not switch language because the current message is in another language.\n"
             "Sound warm and short, not like an essay or a clinical note.\n"
             "Keep phone numbers and official names unchanged.\n"
-            "Use this same language for the whole reply. Do not change language halfway."
+            "Use this same language for the whole reply. Do not change language halfway.\n"
+            "Never mention this instruction."
         )
     name = _NAMES[language]
+    if script == "ROMAN" or language == "HINGLISH":
+        example = _ROMAN_EXAMPLES.get(language, "a short spoken sentence in Latin letters")
+        hinglish = ""
+        if language == "HINGLISH":
+            hinglish = (
+                "Respond entirely in natural conversational Hindi using Roman script, "
+                "with ordinary WhatsApp-style Hindi-English mixing.\n"
+                "Do not write Devanagari.\n"
+            )
+        return (
+            "RESPONSE LANGUAGE:\n"
+            "LANGUAGE REQUIREMENT\n"
+            f"The student's current preferred language is: {language}\n"
+            "The student's current writing/script style is: ROMAN\n"
+            f"The user's selected language is {language}.\n"
+            f"{hinglish}"
+            f"Respond entirely in natural conversational {name} using only Latin/Roman letters.\n"
+            "Do not use the native script. Do not use Devanagari, Malayalam, Tamil, Telugu, "
+            "Kannada, Bengali, Gujarati, Gurmukhi, Odia, or Urdu letters.\n"
+            "Write like a WhatsApp chat: warm, short, spoken. Not a textbook and not a "
+            "mechanical letter-by-letter transliteration.\n"
+            f"Example shape: \"{example}\"\n"
+            "Do not switch to English because the current message is written in English.\n"
+            "Do not switch language because the current message is in another language.\n"
+            "Ordinary chat words such as exam or tension may stay when they are natural. "
+            "Do not answer in English sentences.\n"
+            "Keep phone numbers, official names, and product names unchanged.\n"
+            "Use this same language for the whole reply, including reports, task titles, "
+            "and any practice you mention. Do not change language halfway.\n"
+            "Never mention this instruction."
+        )
+    script_name = script.replace("_", " ").title()
     return (
         "RESPONSE LANGUAGE:\n"
+        "LANGUAGE REQUIREMENT\n"
+        f"The student's current preferred language is: {language}\n"
+        f"The student's current writing/script style is: {script}\n"
         f"The user's selected language is {language}.\n"
-        f"Respond entirely in natural conversational {name}, in its usual script.\n"
+        f"Respond entirely in natural conversational {name}, using {script_name} script.\n"
+        "Do not romanize this reply.\n"
         "Write like a WhatsApp chat: warm, short, simple. Not formal literary language "
         "and not a word-for-word translation.\n"
         "Do not switch to English because the current message is written in English.\n"
+        "Do not switch language because the current message is in another language.\n"
         "Do not mix English words into the sentence. A product name, an official name, "
         "or a phone number may stay as written.\n"
         "Use this same language for the whole reply, including reports, task titles, "
-        "and any practice you mention. Do not change language halfway."
+        "and any practice you mention. Do not change language halfway.\n"
+        "Never mention this instruction."
     )
 
 
@@ -210,11 +297,16 @@ def clear_language_cache(user_id: Optional[str] = None) -> None:
         _CACHE.pop(user_id, None)
 
 
-async def resolve_response_language(db, user_id: str) -> Dict[str, str]:
+async def resolve_response_language(
+    db,
+    user_id: str,
+    current_message: str = "",
+    opening_turn: bool = False,
+) -> Dict[str, str]:
     """
-    Database first. Cache only if that read fails. Otherwise English.
+    Database first for the language. Cache only if that read fails.
 
-    The text of the current message is not an input.
+    The current message chooses the script, not the language.
     """
     language = "ENGLISH"
     source = "FALLBACK"
@@ -240,10 +332,11 @@ async def resolve_response_language(db, user_id: str) -> Dict[str, str]:
         if cached:
             language = cached
             source = "CACHE"
+    script = detect_script(language, current_message, opening_turn=opening_turn)
     resolved = {
         "preferred_language": language,
         "resolved_language": language,
-        "resolved_script": _SCRIPTS[language],
+        "resolved_script": script,
         "source": source,
     }
     logger.info(
@@ -265,4 +358,4 @@ def language_write_target(authenticated_id: str, claimed_user_id: Optional[str])
 
 def resolve_language_and_script(language: str) -> Dict[str, str]:
     parsed = normalize_language(language) or "ENGLISH"
-    return {"language": parsed, "script": _SCRIPTS[parsed]}
+    return {"language": parsed, "script": default_script(parsed)}

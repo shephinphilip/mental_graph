@@ -16,7 +16,6 @@ Owns how welcome + chat turns are stored so ``/chat/welcome``,
 from __future__ import annotations
 
 import hashlib
-import logging
 import uuid
 from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional, Tuple
@@ -24,9 +23,8 @@ from typing import Any, Dict, List, Optional, Tuple
 from motor.motor_asyncio import AsyncIOMotorDatabase
 from pymongo.errors import DuplicateKeyError
 
+from config.config import logger
 from services.security import decrypt_payload, encrypt_payload
-
-logger = logging.getLogger(__name__)
 
 KIND_WELCOME = "welcome"
 KIND_CHAT = "chat"
@@ -93,6 +91,19 @@ async def get_welcome_message(
         }
     )
     return doc
+
+
+async def session_has_user_messages(
+    db: AsyncIOMotorDatabase,
+    user_id: str,
+    session_id: str,
+) -> bool:
+    """True when the student has sent a message. A lone welcome does not count."""
+    doc = await db["messages"].find_one(
+        {"session_id": session_id, "user_id": user_id, "role": "user"},
+        projection={"_id": 1},
+    )
+    return doc is not None
 
 
 async def session_has_any_messages(
@@ -265,6 +276,8 @@ async def persist_welcome_message(
     user_id: str,
     session_id: str,
     content: str,
+    response_language: str = "",
+    response_script: str = "",
 ) -> Tuple[Dict[str, Any], bool]:
     """Insert welcome once per session. Returns existing doc if already present."""
     existing = await get_welcome_message(db, user_id, session_id)
@@ -281,6 +294,37 @@ async def persist_welcome_message(
         idempotency_key=welcome_idempotency_key(session_id, user_id),
         seq=1,
         created_at=datetime.now(timezone.utc),
+        extra={
+            "response_language": response_language,
+            "response_script": response_script,
+        },
+    )
+
+
+async def update_welcome_message(
+    db: AsyncIOMotorDatabase,
+    *,
+    user_id: str,
+    session_id: str,
+    content: str,
+    response_language: str,
+    response_script: str,
+) -> None:
+    """Replace the single welcome in place. Does not insert a second welcome."""
+    await db["messages"].update_one(
+        {
+            "session_id": session_id,
+            "user_id": user_id,
+            "message_kind": KIND_WELCOME,
+            "role": "assistant",
+        },
+        {
+            "$set": {
+                "content": encrypt_payload(content),
+                "response_language": response_language,
+                "response_script": response_script,
+            }
+        },
     )
 
 

@@ -17,7 +17,7 @@ from typing import Any, Dict, Iterable, List, Optional
 from motor.motor_asyncio import AsyncIOMotorDatabase
 from pymongo.errors import DuplicateKeyError
 
-from config import get_settings
+from config.config import get_settings, logger
 from schemas import (
     APMExtraction,
     APMNodeType,
@@ -480,6 +480,7 @@ async def record_intervention_feedback(
             },
         )
     except Exception:
+        logger.exception("APM event apply failed; clearing applying lock")
         await db["apm_events"].update_one(
             event_key,
             {"$unset": {"applying": "", "apply_started_at": ""}},
@@ -665,6 +666,7 @@ async def get_adaptive_memory_context(
         return format_adaptive_memory_context(paths)
     except Exception:
         # APM is additive and must never block a conversation.
+        logger.exception("APM context failed user=%s", user_id)
         return EMPTY_APM_CONTEXT
 
 

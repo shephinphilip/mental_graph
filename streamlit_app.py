@@ -5,7 +5,10 @@ This is freeform conversation, not a mood check-in form. The backend
 resumes dropped sessions, streams replies, and renders inline action cards.
 """
 
+import base64
+import json
 import uuid
+
 import requests
 import streamlit as st
 
@@ -105,7 +108,7 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-DEFAULT_API = "https://suspected-genuine-concepts-lit.trycloudflare.com"
+DEFAULT_API = "https://shephin.tailb32d2a.ts.net/"
 FALLBACK_WELCOME = (
     "I'm here. Whenever you're ready, tell me what's been sitting with you."
 )
@@ -118,6 +121,132 @@ def api_base() -> str:
 def auth_headers() -> dict:
     token = (st.session_state.get("user") or {}).get("access_token")
     return {"Authorization": f"Bearer {token}"} if token else {}
+
+
+def ws_base() -> str:
+    base = api_base()
+    if base.startswith("https://"):
+        return "wss://" + base[len("https://") :]
+    if base.startswith("http://"):
+        return "ws://" + base[len("http://") :]
+    return "ws://" + base
+
+
+def _audio_bytes(clip) -> bytes:
+    if clip is None:
+        return b""
+    if hasattr(clip, "getvalue"):
+        return clip.getvalue()
+    return bytes(clip)
+
+
+def transcribe_for_input(clip) -> str:
+    """Standalone STT. Does not send a chat message."""
+    data = _audio_bytes(clip)
+    name = getattr(clip, "name", None) or "speech.wav"
+    mime = getattr(clip, "type", None) or "audio/wav"
+    response = requests.post(
+        f"{api_base()}/api/v1/voice/stt",
+        headers=auth_headers(),
+        files={"audio": (name, data, mime)},
+        timeout=60,
+    )
+    if response.status_code != 200:
+        raise RuntimeError(response.text)
+    return (response.json() or {}).get("text") or ""
+
+
+def send_chat_text(message: str) -> dict:
+    user = st.session_state.user
+    response = requests.post(
+        f"{api_base()}/chat/send",
+        headers=auth_headers(),
+        json={
+            "user_id": user["user_id"],
+            "session_id": st.session_state.session_id,
+            "message": message,
+        },
+        timeout=90,
+    )
+    if response.status_code != 200:
+        raise RuntimeError(f"Error {response.status_code}: {response.text}")
+    return response.json()
+
+
+def run_voice_mode_turn(clip) -> dict:
+    """One Voice Mode turn over the psychiatrist-voice WebSocket."""
+    from websockets.sync.client import connect
+
+    token = (st.session_state.get("user") or {}).get("access_token") or ""
+    url = f"{ws_base()}/ws/psychiatrist-voice?token={token}"
+    collected = {
+        "transcript": "",
+        "reply": "",
+        "action_cards": [],
+        "pcm": b"",
+        "sample_rate": 24000,
+        "error": "",
+    }
+    chunks: list[bytes] = []
+    with connect(url, open_timeout=15, close_timeout=5) as socket:
+        socket.send(
+            json.dumps(
+                {
+                    "type": "session.start",
+                    "chat_session_id": st.session_state.get("session_id"),
+                }
+            )
+        )
+        started = json.loads(socket.recv())
+        if started.get("type") == "error":
+            raise RuntimeError(started.get("message") or "Voice session failed.")
+        socket.send(json.dumps({"type": "audio.start"}))
+        socket.send(_audio_bytes(clip))
+        socket.send(json.dumps({"type": "audio.end"}))
+        socket.send(json.dumps({"type": "turn.end"}))
+        while True:
+            raw = socket.recv()
+            if isinstance(raw, bytes):
+                continue
+            payload = json.loads(raw)
+            kind = payload.get("type")
+            if kind == "transcript.final":
+                collected["transcript"] = payload.get("text") or ""
+            elif kind == "assistant.text":
+                collected["reply"] = payload.get("text") or ""
+                collected["action_cards"] = payload.get("action_cards") or []
+            elif kind == "audio.chunk":
+                chunks.append(base64.b64decode(payload.get("data") or ""))
+                collected["sample_rate"] = int(payload.get("sample_rate") or 24000)
+            elif kind == "assistant.done":
+                break
+            elif kind == "error":
+                collected["error"] = payload.get("message") or "Voice turn failed."
+                if payload.get("code") == "TTS_FAILED":
+                    continue
+                break
+        socket.send(json.dumps({"type": "session.end"}))
+    collected["pcm"] = b"".join(chunks)
+    return collected
+
+
+def _append_and_render_chat(user_text: str, assistant: dict) -> None:
+    st.session_state.messages.append({"role": "user", "content": user_text})
+    with st.chat_message("user"):
+        st.markdown(user_text)
+    reply_text = assistant.get("reply", "")
+    action_cards = assistant.get("action_cards", [])
+    with st.chat_message("assistant"):
+        st.markdown(reply_text)
+        for card in action_cards:
+            render_action_card(card)
+    st.session_state.messages.append(
+        {
+            "role": "assistant",
+            "content": reply_text,
+            "action_cards": action_cards,
+        }
+    )
 
 
 def send_memory_feedback(payload: dict, event_type: str) -> bool:
@@ -356,6 +485,7 @@ def start_new_session():
                 "action_cards": data.get("action_cards") or [],
             }
         )
+        st.session_state.welcome_language = user.get("preferred_language") or "ENGLISH"
     except requests.exceptions.ConnectionError:
         st.session_state.welcome_error = (
             "Cannot reach the API. Start it with `python run.py`, then start a new conversation."
@@ -468,7 +598,20 @@ with st.sidebar:
             start_new_session()
             st.rerun()
         if st.button("Log out", use_container_width=True):
-            for key in ("user", "session_id", "messages", "welcome_error", "session_report"):
+            for key in (
+                "user",
+                "session_id",
+                "messages",
+                "welcome_error",
+                "session_report",
+                "draft_message",
+                "draft_box",
+                "draft_pending",
+                "draft_should_clear",
+                "voice_mode",
+                "last_stt_clip",
+                "last_voice_clip",
+            ):
                 st.session_state.pop(key, None)
             st.rerun()
 
@@ -709,6 +852,30 @@ if not st.session_state.get("user"):
 if "messages" not in st.session_state:
     start_new_session()
 
+_shown_language = st.session_state.get("welcome_language")
+_preferred = (st.session_state.get("user") or {}).get("preferred_language") or "ENGLISH"
+_open_messages = st.session_state.get("messages") or []
+if (
+    st.session_state.get("session_id")
+    and _shown_language != _preferred
+    and _open_messages
+    and not any(message.get("role") == "user" for message in _open_messages)
+):
+    try:
+        refreshed = fetch_welcome(
+            st.session_state.user["user_id"], st.session_state.session_id
+        )
+        st.session_state.messages = [
+            {
+                "role": "assistant",
+                "content": refreshed.get("reply") or FALLBACK_WELCOME,
+                "action_cards": refreshed.get("action_cards") or [],
+            }
+        ]
+    except Exception:
+        pass
+    st.session_state.welcome_language = _preferred
+
 if st.session_state.get("welcome_error"):
     st.warning(st.session_state.welcome_error)
 
@@ -772,45 +939,138 @@ for msg in st.session_state.messages:
         st.markdown(msg["content"])
         for card in msg.get("action_cards") or []:
             render_action_card(card)
+        if msg.get("audio_wav"):
+            st.audio(msg["audio_wav"], format="audio/wav")
+
+st.session_state.setdefault("draft_message", "")
+st.session_state.setdefault("voice_mode", False)
+
+mic_col, voice_col = st.columns([2, 1])
+with mic_col:
+    st.caption("Microphone — speak, then review the text before sending.")
+    if hasattr(st, "audio_input"):
+        stt_clip = st.audio_input("Record a message", key="stt_mic")
+    else:
+        stt_clip = st.file_uploader(
+            "Upload a WAV clip to type",
+            type=["wav"],
+            key="stt_upload",
+        )
+with voice_col:
+    st.caption("Voice mode — speak and hear Zenark.")
+    if st.session_state.voice_mode:
+        if st.button("Stop Voice", use_container_width=True):
+            st.session_state.voice_mode = False
+            st.rerun()
+        st.info("Voice mode — listening")
+    elif st.button("Start Voice", use_container_width=True):
+        st.session_state.voice_mode = True
+        st.rerun()
+
+if stt_clip is not None:
+    clip_id = getattr(stt_clip, "file_id", None) or getattr(stt_clip, "name", None)
+    if clip_id and clip_id != st.session_state.get("last_stt_clip"):
+        try:
+            with st.spinner("Transcribing..."):
+                text = transcribe_for_input(stt_clip)
+            st.session_state.draft_message = text
+            # Never write the widget key here — apply on the next run first.
+            st.session_state.draft_pending = text
+            st.session_state.last_stt_clip = clip_id
+            st.rerun()
+        except requests.exceptions.ConnectionError:
+            st.error("Cannot reach the API. Start it with `python run.py`.")
+        except Exception as exc:
+            st.error(f"Could not transcribe: {exc}")
+
+# Widget-key writes must happen before st.text_area(key="draft_box").
+if st.session_state.pop("draft_should_clear", False):
+    st.session_state.draft_message = ""
+    st.session_state.pop("draft_pending", None)
+    st.session_state.draft_box = ""
+elif "draft_pending" in st.session_state:
+    st.session_state.draft_box = st.session_state.pop("draft_pending")
+
+if st.session_state.draft_message or st.session_state.get("draft_box"):
+    st.text_area(
+        "Review before sending",
+        key="draft_box",
+        height=90,
+    )
+    send_col, clear_col = st.columns(2)
+    if send_col.button("Send transcription", use_container_width=True):
+        draft = (st.session_state.get("draft_box") or "").strip()
+        if draft:
+            try:
+                with st.spinner("Listening..."):
+                    result = send_chat_text(draft)
+                _append_and_render_chat(draft, result)
+                st.session_state.draft_message = ""
+                st.session_state.draft_should_clear = True
+                st.rerun()
+            except requests.exceptions.ConnectionError:
+                st.error("Cannot connect to FastAPI. Ensure `python run.py` is running.")
+            except Exception as exc:
+                st.error(str(exc))
+    if clear_col.button("Clear draft", use_container_width=True):
+        st.session_state.draft_message = ""
+        st.session_state.draft_should_clear = True
+        st.rerun()
+
+if st.session_state.voice_mode:
+    if hasattr(st, "audio_input"):
+        voice_clip = st.audio_input("Your turn", key="voice_turn_mic")
+    else:
+        voice_clip = st.file_uploader(
+            "Upload a WAV turn",
+            type=["wav"],
+            key="voice_turn_upload",
+        )
+    if voice_clip is not None:
+        voice_id = getattr(voice_clip, "file_id", None) or getattr(voice_clip, "name", None)
+        if voice_id and voice_id != st.session_state.get("last_voice_clip"):
+            st.session_state.last_voice_clip = voice_id
+            try:
+                with st.spinner("Zenark is speaking..."):
+                    voice = run_voice_mode_turn(voice_clip)
+                if voice.get("error") and not voice.get("reply"):
+                    st.error(voice["error"])
+                else:
+                    if voice.get("error"):
+                        st.warning(voice["error"])
+                    audio_wav = b""
+                    if voice.get("pcm"):
+                        from services.voice.audio import pcm_to_wav
+
+                        audio_wav = pcm_to_wav(
+                            voice["pcm"],
+                            sample_rate=int(voice.get("sample_rate") or 24000),
+                        )
+                    st.session_state.messages.append(
+                        {"role": "user", "content": voice.get("transcript") or "[voice]"}
+                    )
+                    st.session_state.messages.append(
+                        {
+                            "role": "assistant",
+                            "content": voice.get("reply") or "",
+                            "action_cards": voice.get("action_cards") or [],
+                            "audio_wav": audio_wav,
+                        }
+                    )
+                    st.rerun()
+            except requests.exceptions.ConnectionError:
+                st.error("Cannot connect to FastAPI. Ensure `python run.py` is running.")
+            except Exception as exc:
+                st.error(f"Voice mode failed: {exc}")
 
 user_input = st.chat_input("Talk about whatever's on your mind. No agenda.")
 
 if user_input:
-    st.session_state.messages.append({"role": "user", "content": user_input})
-    with st.chat_message("user"):
-        st.markdown(user_input)
-
-    user = st.session_state.user
-    with st.chat_message("assistant"):
+    try:
         with st.spinner("Listening..."):
-            try:
-                response = requests.post(
-                    f"{api_base()}/chat/send",
-                    headers=auth_headers(),
-                    json={
-                        "user_id": user["user_id"],
-                        "session_id": st.session_state.session_id,
-                        "message": user_input,
-                    },
-                    timeout=90,
-                )
-                if response.status_code == 200:
-                    res_data = response.json()
-                    reply_text = res_data.get("reply", "")
-                    action_cards = res_data.get("action_cards", [])
-                    st.markdown(reply_text)
-                    for card in action_cards:
-                        render_action_card(card)
-                    st.session_state.messages.append(
-                        {
-                            "role": "assistant",
-                            "content": reply_text,
-                            "action_cards": action_cards,
-                        }
-                    )
-                else:
-                    st.error(f"Error {response.status_code}: {response.text}")
-            except requests.exceptions.ConnectionError:
-                st.error("Cannot connect to FastAPI. Ensure `python run.py` is running.")
-            except Exception as exc:
-                st.error(f"Something went wrong: {exc}")
+            result = send_chat_text(user_input)
+        _append_and_render_chat(user_input, result)
+    except requests.exceptions.ConnectionError:
+        st.error("Cannot connect to FastAPI. Ensure `python run.py` is running.")
+    except Exception as exc:
+        st.error(f"Something went wrong: {exc}")

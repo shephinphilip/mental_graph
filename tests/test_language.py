@@ -12,6 +12,7 @@ from services.language_preferences import (
     clear_language_cache,
     crisis_message,
     explain_practice,
+    detect_script,
     language_instruction,
     language_rank_code,
     language_write_target,
@@ -66,8 +67,11 @@ def test_english_instruction_stays_in_english():
 def test_hindi_instruction_uses_hindi_not_the_message():
     text = language_instruction({"resolved_language": "HINDI"})
     assert "conversational Hindi" in text
+    assert "ROMAN" in text
+    assert "Latin/Roman letters" in text
+    assert "Do not use the native script" in text
     assert "Do not switch to English because the current message is written in English" in text
-    assert "Do not mix English words" in text
+    assert "Do not mix English words" not in text
 
 
 def test_hinglish_stays_roman_and_allows_mixing():
@@ -83,13 +87,31 @@ def test_hinglish_stays_roman_and_allows_mixing():
     "language",
     ["TELUGU", "TAMIL", "MALAYALAM", "KANNADA", "BENGALI", "GUJARATI", "PUNJABI", "ODIA", "URDU"],
 )
-def test_indian_languages_use_their_script_and_forbid_english_mixing(language):
+def test_indian_languages_default_to_roman_letters(language):
     text = language_instruction({"resolved_language": language})
-    assert "usual script" in text
-    assert "Do not mix English words" in text
+    assert "ROMAN" in text
+    assert "Latin/Roman letters" in text
+    assert "Do not use the native script" in text
+    assert "usual script" not in text
     assert "Do not switch to English because the current message is written in English" in text
     spoken = crisis_message(language).split("Tele-MANAS")[0]
     assert _has_script(spoken, _SCRIPTS[language])
+    native_scripts = {
+        "TELUGU": "TELUGU",
+        "TAMIL": "TAMIL",
+        "MALAYALAM": "MALAYALAM",
+        "KANNADA": "KANNADA",
+        "BENGALI": "BENGALI",
+        "GUJARATI": "GUJARATI",
+        "PUNJABI": "GURMUKHI",
+        "ODIA": "ODIA",
+        "URDU": "NASTALIQ",
+    }
+    native = language_instruction(
+        {"resolved_language": language, "resolved_script": native_scripts[language]}
+    )
+    assert "Do not romanize" in native
+    assert "Do not mix English words" in native
 
 
 def test_english_message_does_not_override_malayalam_or_hindi():
@@ -173,7 +195,7 @@ async def test_database_beats_cache_and_a_missing_value_is_english(monkeypatch):
     monkeypatch.setattr("services.language_preferences.get_by_identifier", getter)
     malayalam = await resolve_response_language(object(), "user_a")
     assert malayalam["resolved_language"] == "MALAYALAM"
-    assert malayalam["resolved_script"] == "MALAYALAM"
+    assert malayalam["resolved_script"] == "ROMAN"
     assert malayalam["source"] == "DATABASE"
     other = await resolve_response_language(object(), "user_b")
     assert other["resolved_language"] == "TAMIL"
@@ -275,6 +297,17 @@ def test_crisis_text_keeps_the_preferred_language_and_the_numbers():
     hinglish = crisis_message("HINGLISH")
     assert "14416" in hinglish
     assert not _has_script(hinglish.split("Tele-MANAS")[0], "\u0900")
+
+
+def test_romanized_input_keeps_latin_script_and_native_input_keeps_native_script():
+    assert detect_script("MALAYALAM", "enikku examine kurichu valiya tension aanu") == "ROMAN"
+    assert detect_script("HINDI", "mujhe aaj exam ko lekar bahut tension ho rahi hai") == "ROMAN"
+    assert detect_script("TELUGU", "naaku chala stress ga undi") == "ROMAN"
+    assert detect_script("MALAYALAM", "എനിക്ക് ഇന്ന് കുറച്ച് ടെൻഷൻ ആണ്") == "MALAYALAM"
+    assert detect_script("HINDI", "मुझे आज बहुत तनाव हो रहा है") == "DEVANAGARI"
+    assert detect_script("MALAYALAM", "I am feeling very stressed today.") == "ROMAN"
+    assert detect_script("MALAYALAM", "[Session open] Start this conversation", opening_turn=True) == "ROMAN"
+    assert detect_script("ENGLISH", "enikku tension aanu") == "LATIN"
 
 
 def test_practice_line_names_the_recording_without_inventing_audio():

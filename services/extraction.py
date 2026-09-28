@@ -33,12 +33,12 @@ background extraction failure is transparent to the user.
 """
 
 import json
-import logging
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
 from motor.motor_asyncio import AsyncIOMotorDatabase
 
+from config.config import logger
 from llm_provider import get_llm
 from prompts import APM_EXTRACTION_PROMPT, EXTRACTION_PROMPT, GRAPH_EXTRACTION_PROMPT
 from schemas import (
@@ -49,8 +49,6 @@ from schemas import (
     GraphTuple,
     SessionExtraction,
 )
-
-logger = logging.getLogger(__name__)
 
 
 async def run_background_extraction(
@@ -168,6 +166,17 @@ async def run_background_extraction(
             session_id,
         )
 
+    try:
+        from services.student_profile import refresh_student_profile_background
+
+        await refresh_student_profile_background(db, user_id)
+    except Exception:
+        logger.exception(
+            "Student profile refresh failed for user=%s session=%s",
+            user_id,
+            session_id,
+        )
+
 
 # ── Insight Extraction Helpers ────────────────────────────────────────────────
 
@@ -232,6 +241,9 @@ async def _extract_metadata(user_message: str, ai_reply: str) -> SessionExtracti
 
     # Parse the JSON and validate against the Pydantic schema
     payload: Dict[str, Any] = json.loads(cleaned)
+    # score_turn always overwrites this. Drop the LLM value so a 0–1
+    # fraction cannot fail ge=1 validation.
+    payload.pop("risk_intensity_score", None)
     extraction = SessionExtraction(**payload)
     from services.risk_assessor import score_turn
 

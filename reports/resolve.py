@@ -2,11 +2,10 @@
 
 from __future__ import annotations
 
-import logging
 import re
 from typing import List, Optional
 
-logger = logging.getLogger(__name__)
+from config.config import logger
 
 _AFFIRM = re.compile(
     r"^(yes|yeah|yep|yup|haan|han|ha|ok|okay|done|sorted|resolved|it(?:'s| is) (?:done|sorted|resolved|over)|"

@@ -3,8 +3,8 @@ Inner Council — pre-response deliberation brief for Zenark.
 
 Four specialist lenses (Empathy, Reality Checker, Risk Assessor, Consensus)
 run as a deterministic, zero-LLM micro-council. The brief is injected into
-the system prompt so the primary model merges them into one Reflective
-Containment reply — without adding Bedrock latency before first token.
+the system prompt so the primary model merges them into one listen-first
+reply — without adding Bedrock latency before first token.
 """
 
 from __future__ import annotations
@@ -12,6 +12,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any, Dict, Iterable, Optional, Sequence
 
+from services.action_boundary import assess_action_boundary
 from services.risk_assessor import score_turn
 
 _OVERLOAD_MARKERS = (
@@ -188,6 +189,7 @@ def deliberate(
     persistent_distress: bool = False,
     attach_psychiatrist_card: bool = False,
     action_card_context: Optional[Dict[str, Any]] = None,
+    background_context: str = "",
 ) -> CouncilStance:
     """
     Run the four Inner Council lenses and return a merged stance brief.
@@ -252,15 +254,15 @@ def deliberate(
 
     if verbosity == "brief":
         length = (
-            "Keep to 1–3 short sentences. Emotional space > explanation. "
-            "No multi-paragraph coaching."
+            "Shorter than usual: a few short sentences. Emotional space over "
+            "explanation. No coaching list."
         )
     elif verbosity == "moderate":
-        length = "About 2–4 sentences. One optional soft path at most."
+        length = "2–5 short paragraphs. At most one question."
     else:
         length = (
-            "Up to a short paragraph if they shared a lot — still one idea "
-            "and one optional micro-prompt."
+            "Longer only because they shared a lot or asked for detail — "
+            "still one idea, and guide only if appropriate."
         )
 
     risk_line = {
@@ -270,10 +272,19 @@ def deliberate(
             "or launch intake questions."
         ),
         "crisis_adjacent": (
-            "Possible risk language. Stay calm and structured; surface "
-            "helplines/BOOKING_CARD only if intent is clear. Do not interrogate."
+            "Possible risk language. Follow the existing crisis protocol. "
+            "Do not downgrade risk from memory or patterns. Do not manage "
+            "the crisis yourself. Do not interrogate."
         ),
     }[risk_band]
+
+    boundary = assess_action_boundary(
+        user_message or "",
+        background=background_context,
+    )
+    boundary_line = ""
+    if boundary.prompt_line:
+        boundary_line = f"• Action boundary: {boundary.prompt_line}\n"
 
     card_line = "No psychiatrist card this turn."
     if attach_psychiatrist_card:
@@ -296,9 +307,14 @@ def deliberate(
         f"• Contextual uncertainty: {confidence} → {framing}\n"
         f"• Verbosity target: {verbosity} → {length}\n"
         f"• Care routing: {card_line}\n"
-        "• Consensus: Reflective Containment then Collaborative Agency. "
-        "Mirror emotion (not a fact list). Zero or one gentle optional "
-        "path. Never ask why it matters. Never re-greet. Never stack questions."
+        f"{boundary_line}"
+        "• Consensus: Listen, reflect, validate, then at most one question. "
+        "At most one longitudinal observation, and only when stored evidence "
+        "fits this message. Do not quote scores or say you checked a profile. "
+        "If a crisis or unsafe-action boundary is present, follow that and do "
+        "not add a pattern question. Guide only if appropriate. Mirror emotion "
+        "(not a fact list). Never ask why it matters. Never re-greet. Never "
+        "stack questions."
     )
 
     return CouncilStance(

@@ -5,7 +5,7 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional, Set
 
-from config import get_settings
+from config.config import get_settings
 from services.patterns.score import apply_time_decay
 from services.patterns.store import list_active_patterns
 

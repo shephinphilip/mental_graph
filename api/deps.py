@@ -11,6 +11,7 @@ from typing import Optional
 
 from fastapi import Header, HTTPException
 
+from config.config import logger
 from services.users import verify_access_token
 
 
@@ -32,6 +33,7 @@ def assert_owner(claimed_user_id: str, authenticated_id: str) -> None:
     A client-supplied id is only ever *checked* here — it never selects a row.
     """
     if claimed_user_id != authenticated_id:
+        logger.warning("Owner check failed")
         raise HTTPException(status_code=403, detail="User identity mismatch")
 
 

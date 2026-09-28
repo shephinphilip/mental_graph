@@ -31,8 +31,20 @@ each module already uses named, idempotent `create_index` calls.
 | meditation_executions | user_id, execution_nonce | yes | start idempotency | `services/meditation/service.py` | required |
 | psychiatric_evaluations | userId, evaluation_timestamp | no | latest decision | `consultation/indexes.py` | required |
 | consultation_notifications | userId, read, created_at | no | unread list | `consultation/indexes.py` | required |
+| users | school_id, isActive | no | dashboard roster | `dashboard/indexes.py` | required |
+| users | school, isActive | no | dashboard roster when no school_id | `dashboard/indexes.py` | required |
+| marks | student_id, exam_date | no | dashboard mark history | `dashboard/indexes.py` | required |
+| marks | student_id, subject, exam_date | no | subject drill-down | `dashboard/indexes.py` | required |
+| dashboard_interventions | school_key, intervention_id | yes | one plan in a school | `dashboard/indexes.py` | required |
+| dashboard_interventions | school_key, student_id, updated_at | no | student plan history | `dashboard/indexes.py` | required |
+| dashboard_notifications | school_key, recipient_user_id, read, created_at | no | staff inbox | `dashboard/indexes.py` | required |
+| dashboard_reports | school_key, report_id | yes | report job lookup | `dashboard/indexes.py` | required |
+| dashboard_reports | school_key, created_at | no | recent jobs | `dashboard/indexes.py` | required |
+| dashboard_settings | school_key, user_id | yes | one settings row per staff member | `dashboard/indexes.py` | required |
+| dashboard_audit | school_key, created_at | no | sensitive dashboard actions | `dashboard/indexes.py` | required |
+| dashboard_teacher_actions | school_key, teacher_id, created_at | no | messages, reviews, support plans | `dashboard/indexes.py` | required |
 
-**Not created by the API:** `marks` indexes exist only in `scripts/seed_dummy_data.py`.
+**Marks indexes** are created at startup by `dashboard/indexes.py` as well as by the seed script.
 
 **Query bounds:** list endpoints clamp `days` to `MAX_LIMIT` (default 90).
 Journal readers already limit internally. Chat history is capped by

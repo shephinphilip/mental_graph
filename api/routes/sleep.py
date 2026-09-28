@@ -2,12 +2,12 @@
 
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, BackgroundTasks, Depends
 from motor.motor_asyncio import AsyncIOMotorDatabase
 
 from api.deps import authenticated_user_id, task_http
 from api.presenters import public_sleep
-from config import get_settings
+from config.config import get_settings, logger
 from database import get_db
 from schemas import SleepLogRequest
 
@@ -22,6 +22,7 @@ def _clamp_days(days: int) -> int:
 @router.post("/sleep")
 async def create_sleep(
     payload: SleepLogRequest,
+    background_tasks: BackgroundTasks,
     user_id: str = Depends(authenticated_user_id),
     db: AsyncIOMotorDatabase = Depends(get_db),
 ):
@@ -39,7 +40,11 @@ async def create_sleep(
             claimed_user_id=payload.user_id,
         )
     except (PermissionError, LookupError, ValueError) as exc:
+        logger.warning("Sleep log rejected: %s", exc)
         raise task_http(exc) from exc
+    from services.student_profile import enqueue_profile_refresh
+
+    enqueue_profile_refresh(background_tasks, db, user_id)
     return public_sleep(doc)
 
 

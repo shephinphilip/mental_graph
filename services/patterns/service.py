@@ -2,13 +2,12 @@
 
 from __future__ import annotations
 
-import logging
 from datetime import datetime, timezone
 from typing import Any, Dict, Optional
 
 from motor.motor_asyncio import AsyncIOMotorDatabase
 
-from config import get_settings
+from config.config import get_settings, logger
 from schemas import PatternStatus
 from services.apm import contains_crisis_signal, personalization_enabled
 from services.patterns.adapters import collect_observations
@@ -22,8 +21,6 @@ from services.patterns.store import (
     get_pattern_by_fingerprint,
     upsert_pattern,
 )
-
-logger = logging.getLogger(__name__)
 
 EMPTY_PATTERN_CONTEXT = "No longitudinal user patterns available for this turn."
 

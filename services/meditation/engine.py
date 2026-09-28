@@ -21,7 +21,7 @@ from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, Iterable, List, Optional, Sequence
 
-from config import get_settings
+from config.config import get_settings
 from meditation.data import get_all_sessions
 from meditation.metadata import ELIGIBLE_METADATA_STATUSES, friction_for_duration
 from services.apm import contains_crisis_signal, temporal_bucket

@@ -2,20 +2,17 @@
 
 from __future__ import annotations
 
-import logging
-
 from fastapi import APIRouter, Depends, HTTPException
 from motor.motor_asyncio import AsyncIOMotorDatabase
 
 from api.deps import authenticated_user_id
+from config.config import logger
 from database import get_db
 from schemas import (
     ConsultationBatchRequest,
     ConsultationManualRequest,
     ConsultationOverrideRequest,
 )
-
-logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=["consultation"])
 

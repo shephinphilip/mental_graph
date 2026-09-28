@@ -16,10 +16,14 @@ def hash_user_id(user_id: Optional[str]) -> str:
 
 
 def configure_logging(level: str = "INFO") -> None:
+    resolved = getattr(logging, level.upper(), logging.INFO)
     logging.basicConfig(
-        level=getattr(logging, level.upper(), logging.INFO),
+        level=resolved,
         format="%(asctime)s | %(levelname)-8s | %(name)s | %(message)s",
     )
+    # Keep the Settings-exported ``zenark`` logger on the same level.
+    # It has no handlers of its own; records propagate to this root setup.
+    logging.getLogger("zenark").setLevel(resolved)
 
 
 def log_request(

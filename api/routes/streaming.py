@@ -8,19 +8,16 @@ decisions via ``services/streaming.py``.
 
 from __future__ import annotations
 
-import logging
-
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
 from fastapi.responses import StreamingResponse
 from motor.motor_asyncio import AsyncIOMotorDatabase
 
 from api.deps import assert_owner, authenticated_user_id
+from config.config import logger
 from database import get_db
 from schemas import ChatMessageRequest
 from services.extraction import run_background_extraction
 from services.streaming import stream_chat_graph
-
-logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=["chat"])
 

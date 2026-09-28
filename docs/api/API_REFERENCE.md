@@ -123,7 +123,15 @@ Success: deletion counts. Related: `POST /api/memory/consolidate`.
 
 ## POST /api/memory/consolidate
 
-Purpose: Rebuild the profile summary from stored facts.
+Purpose: Rebuild stored facts and the derived student profile for the token owner.
+
+Success adds `success`, `profile_updated`, `user_id`, `profile_version`, `last_consolidated_at`, and `data_completeness` to the existing `kept`, `archived`, and `summary_chars` fields.
+
+## GET /api/memory/profile
+
+Purpose: Return the token owner's sanitized derived profile. No transcripts or graph ids.
+
+Error 404 when no profile has been consolidated yet. When personalization consent is off, derived scores and conversation summaries are omitted.
 
 ---
 

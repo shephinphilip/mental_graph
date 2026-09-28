@@ -2,9 +2,7 @@
 
 from __future__ import annotations
 
-import logging
-
-logger = logging.getLogger(__name__)
+from config.config import logger
 
 
 async def ensure_all_indexes(db) -> None:
@@ -20,6 +18,10 @@ async def ensure_all_indexes(db) -> None:
     from consultation.indexes import ensure_consultation_indexes
     from student_memory.indexes import ensure_student_memory_indexes
     from tracking.indexes import ensure_tracking_indexes
+    from services.voice.indexes import ensure_voice_indexes
+    from services.student_profile import ensure_student_profile_indexes
+    from exam_buddy_guardrails.memory.graph_repository import ensure_exam_graph_indexes
+    from dashboard.indexes import ensure_dashboard_indexes
 
     await ensure_graph_constraints(db)
     await ensure_apm_indexes(db)
@@ -33,6 +35,10 @@ async def ensure_all_indexes(db) -> None:
     await ensure_consultation_indexes(db)
     await ensure_student_memory_indexes(db)
     await ensure_tracking_indexes(db)
+    await ensure_voice_indexes(db)
+    await ensure_student_profile_indexes(db)
+    await ensure_exam_graph_indexes(db)
+    await ensure_dashboard_indexes(db)
     await db["users"].create_index("email", unique=True)
     await db["users"].create_index("user_id", unique=True)
     logger.info("All domain indexes ensured")

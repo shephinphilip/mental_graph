@@ -11,7 +11,6 @@ import hashlib
 import base64
 import hmac
 import json
-import logging
 import time
 import uuid
 from datetime import datetime, timezone
@@ -21,9 +20,7 @@ from bson import ObjectId
 from motor.motor_asyncio import AsyncIOMotorDatabase
 from pymongo.errors import DuplicateKeyError
 
-from config import get_settings
-
-logger = logging.getLogger(__name__)
+from config.config import get_settings, logger
 
 _PUBLIC_USER_PROJECTION = {
     "password": 0,

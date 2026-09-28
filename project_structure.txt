@@ -1,0 +1,304 @@
+mental_health/
+├── consultation/
+│   ├── __init__.py
+│   ├── context.py
+│   ├── evaluate.py
+│   ├── indexes.py
+│   ├── roles.py
+│   └── signals.py
+├── docs/
+│   ├── CONSULTATION.md
+│   ├── ENCRYPTION.md
+│   ├── JOURNAL.md
+│   ├── MEDITATION_RECOMMENDATION.md
+│   ├── PATTERN_DETECTION.md
+│   ├── REPORTS.md
+│   ├── SLEEP.md
+│   ├── STUDENT_MEMORY.md
+│   ├── TASKS.md
+│   └── TRACKING.md
+├── journaling/
+│   ├── __init__.py
+│   ├── context.py
+│   ├── identity.py
+│   ├── indexes.py
+│   ├── models.py
+│   ├── patterns.py
+│   └── service.py
+├── meditation/
+│   ├── meditation audios/
+│   │   ├── 3/
+│   │   │   ├── 301.mp3
+│   │   │   ├── 302.mp3
+│   │   │   ├── 303 (1).mp3
+│   │   │   ├── 303.mp3
+│   │   │   ├── 304 (1).mp3
+│   │   │   ├── 304.mp3
+│   │   │   ├── 305 (1).mp3
+│   │   │   ├── 305.mp3
+│   │   │   ├── 306 (1).mp3
+│   │   │   ├── 306.mp3
+│   │   │   ├── 307 (1).mp3
+│   │   │   ├── 307.mp3
+│   │   │   ├── 308.mp3
+│   │   │   ├── 309 (1).mp3
+│   │   │   ├── 309.mp3
+│   │   │   ├── 310 (1).mp3
+│   │   │   ├── 310.mp3
+│   │   │   ├── 311.mp3
+│   │   │   ├── 312.mp3
+│   │   │   ├── 313 (1).mp3
+│   │   │   ├── 313.mp3
+│   │   │   ├── 314.mp3
+│   │   │   ├── 315.mp3
+│   │   │   ├── 316.mp3
+│   │   │   ├── 317.mp3
+│   │   │   ├── 318.mp3
+│   │   │   ├── 319.mp3
+│   │   │   ├── 320 (1).mp3
+│   │   │   ├── 320.mp3
+│   │   │   ├── 321.mp3
+│   │   │   ├── 322.mp3
+│   │   │   ├── 323.mp3
+│   │   │   ├── 324.mp3
+│   │   │   ├── 326.mp3
+│   │   │   ├── 327.mp3
+│   │   │   ├── 328.mp3
+│   │   │   ├── 329.mp3
+│   │   │   ├── 330.mp3
+│   │   │   ├── 331.mp3
+│   │   │   ├── 332.mp3
+│   │   │   ├── 333.mp3
+│   │   │   ├── 334mp3
+│   │   │   ├── 335.mp3
+│   │   │   ├── 336.mp3
+│   │   │   ├── 337 (1).mp3
+│   │   │   ├── 337.mp3
+│   │   │   ├── 338.mp3
+│   │   │   ├── 339.mp3
+│   │   │   ├── 340.mp3
+│   │   │   ├── 341.mp3
+│   │   │   ├── 342.mp3
+│   │   │   ├── 343.mp3
+│   │   │   ├── 344.mp3
+│   │   │   ├── 345.mp3
+│   │   │   ├── 346.mp3
+│   │   │   ├── 347.mp3
+│   │   │   ├── 348.mp3
+│   │   │   ├── 349.mp3
+│   │   │   ├── 350.mp3
+│   │   │   ├── 351.mp3
+│   │   │   ├── 352.mp3
+│   │   │   ├── 353.mp3
+│   │   │   ├── 356.mp3
+│   │   │   ├── 357.mp3
+│   │   │   ├── 358.mp3
+│   │   │   ├── 359.mp3
+│   │   │   └── Untitled document.docx
+│   │   ├── 101.mp3
+│   │   ├── 102.mp3
+│   │   ├── 103.mp3
+│   │   ├── 104.mp3
+│   │   ├── 1201.mp3
+│   │   ├── 1202.mp3
+│   │   ├── 201.mp3
+│   │   ├── 202.mp3
+│   │   ├── 203.mp3
+│   │   ├── 204.mp3
+│   │   ├── 205.mp3
+│   │   ├── 206.mp3
+│   │   ├── 207.mp3
+│   │   ├── 208.mp3
+│   │   ├── 209.mp3
+│   │   ├── 210.mp3
+│   │   ├── 301.mp3
+│   │   ├── 302.mp3
+│   │   ├── 303 (1).mp3
+│   │   ├── 303.mp3
+│   │   ├── 304 (1).mp3
+│   │   ├── 304.mp3
+│   │   ├── 305 (1).mp3
+│   │   ├── 305.mp3
+│   │   ├── 306 (1).mp3
+│   │   ├── 306.mp3
+│   │   ├── 307 (1).mp3
+│   │   ├── 307.mp3
+│   │   ├── 308.mp3
+│   │   ├── 309 (1).mp3
+│   │   ├── 309.mp3
+│   │   ├── 310 (1).mp3
+│   │   ├── 310.mp3
+│   │   ├── 311.mp3
+│   │   ├── 312.mp3
+│   │   ├── 313 (1).mp3
+│   │   ├── 313.mp3
+│   │   ├── 314.mp3
+│   │   ├── 315.mp3
+│   │   ├── 316.mp3
+│   │   ├── 317.mp3
+│   │   ├── 318.mp3
+│   │   ├── 319.mp3
+│   │   ├── 320 (1).mp3
+│   │   ├── 320.mp3
+│   │   ├── 321.mp3
+│   │   ├── 322.mp3
+│   │   ├── 323.mp3
+│   │   ├── 324.mp3
+│   │   ├── 326.mp3
+│   │   ├── 327.mp3
+│   │   ├── 328.mp3
+│   │   ├── 329.mp3
+│   │   ├── 330.mp3
+│   │   ├── 331.mp3
+│   │   ├── 332.mp3
+│   │   ├── 333.mp3
+│   │   ├── 335.mp3
+│   │   ├── 336.mp3
+│   │   ├── 337 (1).mp3
+│   │   ├── 337.mp3
+│   │   ├── 338.mp3
+│   │   ├── 339.mp3
+│   │   ├── 340.mp3
+│   │   ├── 341.mp3
+│   │   ├── 342.mp3
+│   │   ├── 343.mp3
+│   │   ├── 344.mp3
+│   │   ├── 345.mp3
+│   │   ├── 346.mp3
+│   │   ├── 347.mp3
+│   │   ├── 348.mp3
+│   │   ├── 349.mp3
+│   │   ├── 350.mp3
+│   │   ├── 351.mp3
+│   │   ├── 352.mp3
+│   │   ├── 353.mp3
+│   │   ├── 356.mp3
+│   │   ├── 357.mp3
+│   │   ├── 358.mp3
+│   │   ├── 359.mp3
+│   │   └── Untitled document.docx
+│   ├── __init__.py
+│   ├── audio.py
+│   ├── data.py
+│   └── metadata.py
+├── reports/
+│   ├── __init__.py
+│   ├── context.py
+│   ├── indexes.py
+│   ├── models.py
+│   ├── resolve.py
+│   └── store.py
+├── scripts/
+│   ├── bootstrap_apm.py
+│   ├── consolidate_memory.py
+│   ├── migrate_neo4j_to_mongodb.py
+│   ├── seed_dummy_data.py
+│   └── seed_meditation_demo.py
+├── services/
+│   ├── meditation/
+│   │   ├── __init__.py
+│   │   ├── cards.py
+│   │   ├── demo_profiles.py
+│   │   ├── engine.py
+│   │   └── service.py
+│   ├── patterns/
+│   │   ├── __init__.py
+│   │   ├── adapters.py
+│   │   ├── detect.py
+│   │   ├── feedback.py
+│   │   ├── retrieve.py
+│   │   ├── score.py
+│   │   ├── service.py
+│   │   ├── store.py
+│   │   └── window.py
+│   ├── __init__.py
+│   ├── action_cards.py
+│   ├── apm.py
+│   ├── chat_history.py
+│   ├── context.py
+│   ├── extraction.py
+│   ├── graph.py
+│   ├── graph_rag.py
+│   ├── inner_council.py
+│   ├── language_preferences.py
+│   ├── marks.py
+│   ├── mongo_graph.py
+│   ├── risk_assessor.py
+│   ├── security.py
+│   ├── session_report.py
+│   ├── session_resume.py
+│   ├── streaming.py
+│   └── users.py
+├── sleep/
+│   ├── __init__.py
+│   ├── context.py
+│   ├── identity.py
+│   ├── indexes.py
+│   ├── patterns.py
+│   ├── reader.py
+│   └── writer.py
+├── student_memory/
+│   ├── __init__.py
+│   ├── context.py
+│   ├── indexes.py
+│   ├── models.py
+│   └── store.py
+├── tasks/
+│   ├── __init__.py
+│   ├── context.py
+│   ├── identity.py
+│   ├── indexes.py
+│   ├── store.py
+│   └── validate.py
+├── tests/
+│   ├── __init__.py
+│   ├── test_action_cards.py
+│   ├── test_apm.py
+│   ├── test_auth.py
+│   ├── test_chat_history.py
+│   ├── test_consultation.py
+│   ├── test_extraction_sanitize.py
+│   ├── test_fallback.py
+│   ├── test_graph.py
+│   ├── test_graph_rag.py
+│   ├── test_inner_council.py
+│   ├── test_journal.py
+│   ├── test_language.py
+│   ├── test_llm_provider.py
+│   ├── test_marks.py
+│   ├── test_meditation.py
+│   ├── test_mongo_graph.py
+│   ├── test_patterns.py
+│   ├── test_prompts.py
+│   ├── test_reports.py
+│   ├── test_risk_window.py
+│   ├── test_security.py
+│   ├── test_session_resume.py
+│   ├── test_sleep.py
+│   ├── test_streaming.py
+│   ├── test_student_memory.py
+│   ├── test_tasks.py
+│   └── test_tracking.py
+├── tracking/
+│   ├── __init__.py
+│   ├── habits.py
+│   ├── indexes.py
+│   └── mood.py
+├── .env
+├── .env.example
+├── .gitignore
+├── app.py
+├── config.py
+├── crontab.txt
+├── database.py
+├── llm_provider.py
+├── mental_schema.py
+├── notes.txt
+├── prompts.py
+├── README.md
+├── requirements.txt
+├── run.py
+├── scheduler.py
+├── schemas.py
+├── streamlit_app.py
+└── verify_tracking.py

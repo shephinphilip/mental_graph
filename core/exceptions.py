@@ -8,6 +8,7 @@ from fastapi import HTTPException, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 
+from config.config import logger
 from core.request_id import current_request_id
 
 STATUS_CODES = {
@@ -18,6 +19,7 @@ STATUS_CODES = {
     409: "CONFLICT",
     429: "RATE_LIMITED",
     500: "INTERNAL_ERROR",
+    502: "PROVIDER_ERROR",
     503: "NOT_READY",
 }
 
@@ -28,6 +30,7 @@ SAFE_MESSAGES = {
     409: "Conflict.",
     429: "Too many requests.",
     500: "An unexpected error occurred.",
+    502: "A speech provider error occurred.",
     503: "Service is not ready.",
 }
 
@@ -71,6 +74,12 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
 
 async def unhandled_exception_handler(request: Request, exc: Exception) -> JSONResponse:
     request_id = getattr(request.state, "request_id", "") or current_request_id()
+    logger.exception(
+        "Unhandled exception request_id=%s method=%s path=%s",
+        request_id,
+        request.method,
+        request.url.path,
+    )
     body = error_body(500, SAFE_MESSAGES[500], request_id)
     body["detail"] = SAFE_MESSAGES[500]
     return JSONResponse(status_code=500, content=body, headers={"X-Request-ID": request_id})

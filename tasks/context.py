@@ -2,11 +2,8 @@
 
 from __future__ import annotations
 
-import logging
-
+from config.config import logger
 from tasks.store import recent_task_days
-
-logger = logging.getLogger(__name__)
 
 EMPTY_TASK_CONTEXT = "No tasks available."
 

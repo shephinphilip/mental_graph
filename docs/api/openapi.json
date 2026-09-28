@@ -1017,6 +1017,66 @@
         }
       }
     },
+    "/voice/stt": {
+      "post": {
+        "tags": [
+          "voice"
+        ],
+        "summary": "Speech To Text",
+        "description": "One-shot transcription for the chat input box.\n\nDoes not call the LLM and does not persist a chat turn. The client\nmust POST ``/chat/send`` after the user reviews the text.",
+        "operationId": "speech_to_text_voice_stt_post",
+        "parameters": [
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_speech_to_text_voice_stt_post"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SpeechToTextResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/language": {
       "post": {
         "tags": [
@@ -1243,8 +1303,56 @@
           "memory"
         ],
         "summary": "Consolidate Memory",
-        "description": "Rebuild the profile summary from stored facts. Also run by scripts/consolidate_memory.py.",
+        "description": "Rebuild stored facts and the derived student profile for the token owner.",
         "operationId": "consolidate_memory_api_memory_consolidate_post",
+        "parameters": [
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/memory/profile": {
+      "get": {
+        "tags": [
+          "memory"
+        ],
+        "summary": "Get Memory Profile",
+        "description": "Sanitized derived profile for the token owner. No transcripts or graph ids.",
+        "operationId": "get_memory_profile_api_memory_profile_get",
         "parameters": [
           {
             "name": "authorization",
@@ -3532,6 +3640,66 @@
         }
       }
     },
+    "/api/v1/voice/stt": {
+      "post": {
+        "tags": [
+          "voice"
+        ],
+        "summary": "Speech To Text",
+        "description": "One-shot transcription for the chat input box.\n\nDoes not call the LLM and does not persist a chat turn. The client\nmust POST ``/chat/send`` after the user reviews the text.",
+        "operationId": "speech_to_text_api_v1_voice_stt_post",
+        "parameters": [
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_speech_to_text_api_v1_voice_stt_post"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SpeechToTextResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/language": {
       "post": {
         "tags": [
@@ -3758,8 +3926,56 @@
           "memory"
         ],
         "summary": "Consolidate Memory",
-        "description": "Rebuild the profile summary from stored facts. Also run by scripts/consolidate_memory.py.",
+        "description": "Rebuild stored facts and the derived student profile for the token owner.",
         "operationId": "consolidate_memory_api_v1_memory_consolidate_post",
+        "parameters": [
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/memory/profile": {
+      "get": {
+        "tags": [
+          "memory"
+        ],
+        "summary": "Get Memory Profile",
+        "description": "Sanitized derived profile for the token owner. No transcripts or graph ids.",
+        "operationId": "get_memory_profile_api_v1_memory_profile_get",
         "parameters": [
           {
             "name": "authorization",
@@ -5180,6 +5396,34 @@
         "title": "ActionCard",
         "description": "A structured action card surfaced inside the chat UI.\n\nAction cards are parsed from the LLM's raw output when it emits a\n``<<<ACTION_CARD { ... } ACTION_CARD>>>`` block.  The cleaned\nconversational text (minus the card markup) is returned separately.\n\nAttributes\n----------\ncard_type : CardType\n    Controls which UI component the front-end renders.\ntitle : str\n    Short, user-facing heading displayed on the card.\nsubtitle : str, optional\n    Supporting description displayed below the title.\naction_payload : dict\n    Arbitrary metadata the UI needs to execute the action.\n    Schema depends on ``card_type`` \u2014 e.g. a TOOL_CARD might carry\n    ``{\"resource_id\": \"body_scan_8min\"}``."
       },
+      "Body_speech_to_text_api_v1_voice_stt_post": {
+        "properties": {
+          "audio": {
+            "type": "string",
+            "contentMediaType": "application/octet-stream",
+            "title": "Audio"
+          }
+        },
+        "type": "object",
+        "required": [
+          "audio"
+        ],
+        "title": "Body_speech_to_text_api_v1_voice_stt_post"
+      },
+      "Body_speech_to_text_voice_stt_post": {
+        "properties": {
+          "audio": {
+            "type": "string",
+            "contentMediaType": "application/octet-stream",
+            "title": "Audio"
+          }
+        },
+        "type": "object",
+        "required": [
+          "audio"
+        ],
+        "title": "Body_speech_to_text_voice_stt_post"
+      },
       "CardType": {
         "type": "string",
         "enum": [
@@ -6035,6 +6279,25 @@
         ],
         "title": "SleepLogRequest",
         "description": "Self-reported night. user_id is ignored for authorization."
+      },
+      "SpeechToTextResponse": {
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "title": "Success",
+            "default": true
+          },
+          "text": {
+            "type": "string",
+            "title": "Text"
+          }
+        },
+        "type": "object",
+        "required": [
+          "text"
+        ],
+        "title": "SpeechToTextResponse",
+        "description": "Standalone microphone transcription. Does not send a chat turn."
       },
       "StreakVisibilityRequest": {
         "properties": {

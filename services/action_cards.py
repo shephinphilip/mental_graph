@@ -31,11 +31,11 @@ conversational reply even if the LLM produces a malformed card.
 """
 
 import json
-import logging
 import re
 import secrets
 from typing import List, Optional, Tuple
 
+from config.config import logger
 from schemas import ActionCard, CardType
 
 PSYCHIATRIST_CARD_ID = "card_psychiatrist_v1"
@@ -113,8 +113,6 @@ def ensure_psychiatrist_card(
             pattern_id=pattern_id, trigger_reason=trigger_reason
         )
     ]
-
-logger = logging.getLogger(__name__)
 
 # ── Compiled Regex Pattern ────────────────────────────────────────────────────
 # Matches the full <<<ACTION_CARD { ... } ACTION_CARD>>> block.

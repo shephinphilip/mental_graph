@@ -2,9 +2,7 @@
 
 from __future__ import annotations
 
-import logging
-
-logger = logging.getLogger(__name__)
+from config.config import logger
 
 MOODS = "mood_logs"
 HABITS = "habit_events"

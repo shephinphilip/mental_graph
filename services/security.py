@@ -49,7 +49,6 @@ migration.  The security of the scheme rests primarily on the entropy of
 """
 
 import base64
-import logging
 import re
 from typing import Tuple
 
@@ -57,9 +56,7 @@ from cryptography.fernet import Fernet, InvalidToken
 from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
 
-from config import get_settings
-
-logger = logging.getLogger(__name__)
+from config.config import get_settings, logger
 
 # ── PII Redaction Patterns ────────────────────────────────────────────────────
 # Pre-compiled at module level for performance (applied on every streamed message).

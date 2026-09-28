@@ -12,8 +12,9 @@ def test_crush_disclosure_gets_reflective_containment_brief():
         ],
     )
     assert stance.risk_band == "none"
-    assert "Reflective Containment" in stance.consensus_brief
+    assert "Listen, reflect, validate" in stance.consensus_brief
     assert "Never ask why it matters" in stance.consensus_brief
+    assert "Reflective Containment" not in stance.consensus_brief
     assert "vulnerability" in stance.empathy_focus.lower() or "secrecy" in stance.empathy_focus.lower()
     assert stance.confidence in {"moderate", "high"}
 

@@ -13,10 +13,7 @@ Exposes:
   - ``sanitize_messages_for_bedrock()``: Formats messages for Bedrock Converse API constraints.
 """
 
-import logging
-from config import get_settings
-
-logger = logging.getLogger(__name__)
+from config.config import get_settings, logger
 
 
 def validate_llm_configuration() -> None:

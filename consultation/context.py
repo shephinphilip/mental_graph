@@ -2,9 +2,7 @@
 
 from __future__ import annotations
 
-import logging
-
-logger = logging.getLogger(__name__)
+from config.config import logger
 
 EMPTY = (
     "No professional-care status on file. Do not raise referral unless the "

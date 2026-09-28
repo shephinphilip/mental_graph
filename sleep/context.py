@@ -2,14 +2,11 @@
 
 from __future__ import annotations
 
-import logging
 from typing import Any, Dict, List, Optional
 
-from config import get_settings
+from config.config import get_settings, logger
 from sleep.patterns import baseline_observation, findings
 from sleep.reader import get_recent_sleep, get_sleep_history, stored_duration, valid_records
-
-logger = logging.getLogger(__name__)
 
 EMPTY_SLEEP_CONTEXT = "No sleep data available"
 

@@ -151,6 +151,13 @@ class ChatMessageResponse(BaseModel):
     action_cards: List[ActionCard] = []
 
 
+class SpeechToTextResponse(BaseModel):
+    """Standalone microphone transcription. Does not send a chat turn."""
+
+    success: bool = True
+    text: str
+
+
 class LoginRequest(BaseModel):
     email: str
     password: str

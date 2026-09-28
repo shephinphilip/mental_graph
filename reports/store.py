@@ -2,10 +2,10 @@
 
 from __future__ import annotations
 
-import logging
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
+from config.config import logger
 from reports.indexes import COLLECTION
 from reports.models import (
     clamp_metric,
@@ -16,8 +16,6 @@ from reports.models import (
 )
 from tasks.identity import identity_keys, identity_query, owns_claimed_id
 from tasks.store import add_selected_report_task
-
-logger = logging.getLogger(__name__)
 
 
 def _summary(value: Any) -> str:
@@ -109,6 +107,7 @@ async def mark_event_resolved(db, user_id: str, event_id: str) -> bool:
             {"user_id": report.get("user_id"), "session_id": report.get("session_id")},
             {"$set": {"events": events}},
         )
+        logger.info("Report event resolved user=%s event_id=%s", user_id, event_id)
         return True
     return False
 

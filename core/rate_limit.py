@@ -15,7 +15,7 @@ from typing import Deque, Dict, Tuple
 
 from fastapi import HTTPException, Request
 
-from config import get_settings
+from config.config import get_settings, logger
 
 _windows: Dict[str, Deque[float]] = defaultdict(deque)
 _lock = Lock()
@@ -31,8 +31,14 @@ def _limit_for(path: str) -> Tuple[int, int]:
         return settings.RATE_LIMIT_STREAM_PER_MINUTE, 60
     if path.endswith("/chat/send") or path.endswith("/chat/welcome"):
         return settings.RATE_LIMIT_CHAT_PER_MINUTE, 60
-    if path.endswith("/session/report"):
+    if path.endswith("/session/report") or "/dashboard/reports" in path:
         return settings.RATE_LIMIT_REPORT_PER_MINUTE, 60
+    if "/dashboard/assistant" in path:
+        return min(20, settings.RATE_LIMIT_CHAT_PER_MINUTE), 60
+    if path.endswith("/voice/stt"):
+        return settings.RATE_LIMIT_VOICE_STT_PER_MINUTE, 60
+    if path.endswith("/ws/psychiatrist-voice"):
+        return settings.RATE_LIMIT_VOICE_SESSION_PER_MINUTE, 60
     return settings.RATE_LIMIT_DEFAULT_PER_MINUTE, 60
 
 
@@ -57,6 +63,8 @@ async def enforce_rate_limit(request: Request) -> None:
     settings = get_settings()
     if not settings.RATE_LIMIT_ENABLED:
         return
+    if request.scope.get("type") == "websocket":
+        return
     if _skipped(request.url.path):
         return
     limit, window = _limit_for(request.url.path)
@@ -65,4 +73,5 @@ async def enforce_rate_limit(request: Request) -> None:
     identity = request.headers.get("authorization") or (request.client.host if request.client else "anon")
     key = f"{request.url.path}:{identity[-32:]}"
     if not allow(key, limit, window):
+        logger.warning("Rate limit exceeded path=%s", request.url.path)
         raise HTTPException(status_code=429, detail="Too many requests.")

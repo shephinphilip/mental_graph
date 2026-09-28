@@ -30,7 +30,12 @@ def _auth(user_id: str = "user_a"):
 def _mounted_paths():
     """Resolve included-router prefixes the way FastAPI does at request time."""
     found = set()
+    from fastapi.routing import APIWebSocketRoute
+
     for route in app.router.routes:
+        if isinstance(route, APIWebSocketRoute):
+            found.add((route.path, "WS"))
+            continue
         contexts = getattr(route, "effective_route_contexts", None)
         if contexts:
             for ctx in contexts():
@@ -57,6 +62,10 @@ def test_compatibility_and_v1_paths_are_both_mounted():
         ("/health", "GET"),
         ("/health/live", "GET"),
         ("/health/ready", "GET"),
+        ("/voice/stt", "POST"),
+        ("/api/v1/voice/stt", "POST"),
+        ("/ws/psychiatrist-voice", "WS"),
+        ("/api/v1/ws/psychiatrist-voice", "WS"),
     ]:
         assert (path, method) in mounted, f"{method} {path} is not mounted"
 

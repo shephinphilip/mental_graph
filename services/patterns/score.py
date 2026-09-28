@@ -5,7 +5,7 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from typing import Optional, Tuple
 
-from config import get_settings
+from config.config import get_settings
 from schemas import PatternStatus
 
 

@@ -2,14 +2,13 @@
 
 from __future__ import annotations
 
-import logging
 import uuid
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
 from motor.motor_asyncio import AsyncIOMotorDatabase
 
-logger = logging.getLogger(__name__)
+from config.config import logger
 
 PATTERNS_COLLECTION = "user_patterns"
 EVIDENCE_COLLECTION = "pattern_evidence"
@@ -60,6 +59,7 @@ async def ensure_pattern_indexes(db: AsyncIOMotorDatabase) -> None:
         [("user_id", 1), ("created_at", -1)],
         name="user_risk_turns_recency",
     )
+    logger.info("Pattern indexes ensured")
 
 
 def new_pattern_id() -> str:

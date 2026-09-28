@@ -7,7 +7,7 @@ from datetime import datetime, timezone
 from hashlib import sha256
 from typing import Any, Dict, List, Optional
 
-from config import get_settings
+from config.config import get_settings
 from schemas import PatternDomain, PatternType
 from services.patterns.adapters import group_marks_by_subject, personal_baseline
 from services.patterns.score import (

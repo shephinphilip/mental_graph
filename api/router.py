@@ -13,6 +13,7 @@ from api.routes import (
     auth,
     chat,
     consultation,
+    exam_buddy,
     health,
     journal,
     language,
@@ -24,7 +25,9 @@ from api.routes import (
     streaming,
     tasks,
     tracking,
+    voice,
 )
+from dashboard.router import router as dashboard_router
 
 
 def _mount_domain(router: APIRouter, *, api_prefix: str) -> None:
@@ -38,6 +41,7 @@ def _mount_domain(router: APIRouter, *, api_prefix: str) -> None:
     router.include_router(streaming.router)
     router.include_router(journal.router)
     router.include_router(consultation.router)
+    router.include_router(voice.router)
     router.include_router(language.router, prefix=api_prefix)
     router.include_router(memory.router, prefix=api_prefix)
     router.include_router(patterns.router, prefix=api_prefix)
@@ -46,6 +50,7 @@ def _mount_domain(router: APIRouter, *, api_prefix: str) -> None:
     router.include_router(tasks.router, prefix=api_prefix)
     router.include_router(reports.router, prefix=api_prefix)
     router.include_router(meditation.router, prefix=api_prefix)
+    router.include_router(exam_buddy.router, prefix=api_prefix)
 
 
 def build_api_router() -> APIRouter:
@@ -56,5 +61,7 @@ def build_api_router() -> APIRouter:
     versioned = APIRouter()
     versioned.include_router(health.router)
     _mount_domain(versioned, api_prefix="")
+    # School dashboard is new. It is not mounted on the unversioned compatibility tree.
+    versioned.include_router(dashboard_router)
     root.include_router(versioned, prefix="/api/v1")
     return root
