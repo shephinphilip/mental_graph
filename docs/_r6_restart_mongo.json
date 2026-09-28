@@ -1,0 +1,14 @@
+{
+  "ready": {
+    "live": 200,
+    "ready": 200,
+    "ready_status": "ready",
+    "live_ms": 7.3,
+    "ready_ms": 64.2
+  },
+  "journal_http": 200,
+  "journal_count": 1,
+  "user_id": "usr_b2440264a235",
+  "login_still_works": 200,
+  "login_has_token": true
+}

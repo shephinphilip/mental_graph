@@ -1,0 +1,404 @@
+{
+  "encryption_mongo": {
+    "journal_content": {
+      "present": true,
+      "enc_prefix": true,
+      "contains_marker": false,
+      "len": 169
+    },
+    "mood_note": {
+      "present": true,
+      "enc_prefix": true,
+      "contains_marker": false,
+      "len": 125
+    },
+    "message_content": {
+      "present": true,
+      "enc_prefix": true,
+      "contains_marker": false,
+      "len": 401
+    }
+  },
+  "staff_created": [
+    {
+      "user_id": "usr_r6pa6c4512a0",
+      "email": "r6.principal.a.6c4512a0@staging.zenark.test",
+      "school_id": "r6_school_a"
+    },
+    {
+      "user_id": "usr_r6pb6c4512a0",
+      "email": "r6.principal.b.6c4512a0@staging.zenark.test",
+      "school_id": "r6_school_b"
+    }
+  ],
+  "dashboard": {
+    "principal_a_login": 200,
+    "principal_b_login": 200,
+    "ctx_a": 200,
+    "ctx_b": 200,
+    "ctx_a_rid": "0edb4ccaa8c24fa78eb0825bd5461602",
+    "overview_a_with_foreign_query": 200,
+    "overview_b_with_foreign_query": 200,
+    "overview_a_ms": 4.5,
+    "cross_profile": 404,
+    "own_profile": 200,
+    "cross_interventions": 404,
+    "student_ctx": 403,
+    "ctx_a_shape": {
+      "id": "id:r6_school_a",
+      "name": "R6 School A",
+      "board": null
+    },
+    "ctx_b_shape": {
+      "id": "id:r6_school_b",
+      "name": "R6 School B",
+      "board": null
+    },
+    "overview_a_shape": {
+      "id": "id:r6_school_a",
+      "name": "R6 School A",
+      "board": null
+    },
+    "leaks_overview": []
+  },
+  "erasure": {
+    "erase1_http": 200,
+    "erase1_status": "succeeded",
+    "erase1_counts": {
+      "messages": 0,
+      "journal_entries": 1,
+      "sleep_logs": 1,
+      "mood_logs": 1,
+      "daily_tasks": 1,
+      "habit_events": 1,
+      "meditation_executions": 0,
+      "meditation_offers": 0,
+      "student_psychological_profiles": 1,
+      "student_memories": 1,
+      "user_patterns": 1,
+      "pattern_evidence": 1,
+      "user_insights": 1,
+      "session_reports": 1,
+      "apm_nodes": 1,
+      "apm_edges": 1,
+      "apm_events": 1,
+      "graph_nodes": 1,
+      "graph_relationships": 1,
+      "exam_buddy_nodes": 1,
+      "exam_buddy_relationships": 1,
+      "gds_snapshots": 1,
+      "user_risk_turns": 1
+    },
+    "erase2_http": 200,
+    "erase2_status": "succeeded",
+    "erase2_job_id_same": true,
+    "before_d": {
+      "messages": 0,
+      "journal_entries": 0,
+      "sleep_logs": 0,
+      "mood_logs": 0,
+      "daily_tasks": 0,
+      "habit_events": 0,
+      "meditation_executions": 0,
+      "meditation_offers": 0,
+      "student_psychological_profiles": 0,
+      "student_memories": 1,
+      "user_patterns": 1,
+      "pattern_evidence": 1,
+      "user_insights": 1,
+      "session_reports": 1,
+      "apm_nodes": 1,
+      "apm_edges": 1,
+      "apm_events": 1,
+      "graph_nodes": 1,
+      "graph_relationships": 1,
+      "exam_buddy_nodes": 1,
+      "exam_buddy_relationships": 1,
+      "gds_snapshots": 1,
+      "user_risk_turns": 1,
+      "escalation_cases": 2,
+      "erasure_jobs": 1,
+      "users": 1,
+      "escalation_narrative_present": false
+    },
+    "after_d": {
+      "messages": 0,
+      "journal_entries": 0,
+      "sleep_logs": 0,
+      "mood_logs": 0,
+      "daily_tasks": 0,
+      "habit_events": 0,
+      "meditation_executions": 0,
+      "meditation_offers": 0,
+      "student_psychological_profiles": 0,
+      "student_memories": 1,
+      "user_patterns": 1,
+      "pattern_evidence": 1,
+      "user_insights": 1,
+      "session_reports": 1,
+      "apm_nodes": 1,
+      "apm_edges": 1,
+      "apm_events": 1,
+      "graph_nodes": 1,
+      "graph_relationships": 1,
+      "exam_buddy_nodes": 1,
+      "exam_buddy_relationships": 1,
+      "gds_snapshots": 1,
+      "user_risk_turns": 1,
+      "escalation_cases": 2,
+      "erasure_jobs": 1,
+      "users": 1,
+      "escalation_narrative_present": false
+    },
+    "after_e": {
+      "messages": 0,
+      "journal_entries": 1,
+      "sleep_logs": 1,
+      "mood_logs": 1,
+      "daily_tasks": 1,
+      "habit_events": 1,
+      "meditation_executions": 0,
+      "meditation_offers": 0,
+      "student_psychological_profiles": 1,
+      "student_memories": 0,
+      "user_patterns": 0,
+      "pattern_evidence": 0,
+      "user_insights": 0,
+      "session_reports": 0,
+      "apm_nodes": 0,
+      "apm_edges": 0,
+      "apm_events": 0,
+      "graph_nodes": 0,
+      "graph_relationships": 0,
+      "exam_buddy_nodes": 0,
+      "exam_buddy_relationships": 0,
+      "gds_snapshots": 0,
+      "user_risk_turns": 0,
+      "escalation_cases": 0,
+      "erasure_jobs": 0,
+      "users": 1,
+      "escalation_narrative_present": false
+    },
+    "d_recent_journal_http": 200,
+    "d_recent_count": 0,
+    "e_recent_journal_http": 200,
+    "e_recent_count": 1,
+    "d_resume_http": 200,
+    "integrity": {
+      "has_mental_health": false,
+      "encrypted_ok": 10,
+      "plaintext_sensitive_fields": 0,
+      "user_count": 15,
+      "r6_users": 14,
+      "incomplete_messages": 0
+    }
+  },
+  "explain": {
+    "users_by_user_id": {
+      "stages": [
+        "FETCH",
+        "IXSCAN:user_id_1"
+      ],
+      "nReturned": 1,
+      "totalDocsExamined": 1,
+      "totalKeysExamined": 1,
+      "executionTimeMillis": 2,
+      "collection_scan": false,
+      "index_scan": true
+    },
+    "users_by_school_id": {
+      "stages": [
+        "FETCH",
+        "IXSCAN:users_school_id_active"
+      ],
+      "nReturned": 3,
+      "totalDocsExamined": 3,
+      "totalKeysExamined": 3,
+      "executionTimeMillis": 0,
+      "collection_scan": false,
+      "index_scan": true
+    },
+    "messages_by_user_session": {
+      "stages": [
+        "SORT",
+        "FETCH",
+        "IXSCAN:session_user_created_seq"
+      ],
+      "nReturned": 4,
+      "totalDocsExamined": 4,
+      "totalKeysExamined": 4,
+      "executionTimeMillis": 0,
+      "collection_scan": false,
+      "index_scan": true
+    },
+    "journal_by_user": {
+      "stages": [
+        "FETCH",
+        "IXSCAN:journal_user_timestamp"
+      ],
+      "nReturned": 1,
+      "totalDocsExamined": 1,
+      "totalKeysExamined": 1,
+      "executionTimeMillis": 0,
+      "collection_scan": false,
+      "index_scan": true
+    },
+    "graph_nodes_by_user": {
+      "stages": [
+        "FETCH",
+        "IXSCAN:uniq_user_node"
+      ],
+      "nReturned": 0,
+      "totalDocsExamined": 0,
+      "totalKeysExamined": 0,
+      "executionTimeMillis": 0,
+      "collection_scan": false,
+      "index_scan": true
+    },
+    "profiles_by_user": {
+      "stages": [
+        "FETCH",
+        "IXSCAN:uniq_student_psychological_profile_user"
+      ],
+      "nReturned": 1,
+      "totalDocsExamined": 1,
+      "totalKeysExamined": 1,
+      "executionTimeMillis": 0,
+      "collection_scan": false,
+      "index_scan": true
+    },
+    "erasure_jobs_by_user": {
+      "stages": [
+        "FETCH",
+        "IXSCAN:user_id_1_status_1"
+      ],
+      "nReturned": 0,
+      "totalDocsExamined": 0,
+      "totalKeysExamined": 0,
+      "executionTimeMillis": 0,
+      "collection_scan": false,
+      "index_scan": true
+    }
+  },
+  "personalization_counts": {
+    "usr_9eb3a0bd6c0a": {
+      "messages": 0,
+      "journal_entries": 1,
+      "sleep_logs": 1,
+      "mood_logs": 1,
+      "daily_tasks": 1,
+      "habit_events": 1,
+      "meditation_executions": 0,
+      "meditation_offers": 0,
+      "student_psychological_profiles": 1,
+      "student_memories": 0,
+      "user_patterns": 0,
+      "pattern_evidence": 0,
+      "user_insights": 0,
+      "session_reports": 0,
+      "apm_nodes": 0,
+      "apm_edges": 0,
+      "apm_events": 0,
+      "graph_nodes": 0,
+      "graph_relationships": 0,
+      "exam_buddy_nodes": 0,
+      "exam_buddy_relationships": 0,
+      "gds_snapshots": 0,
+      "user_risk_turns": 0,
+      "escalation_cases": 0,
+      "erasure_jobs": 0,
+      "users": 1,
+      "escalation_narrative_present": false
+    },
+    "usr_398e87cc0c7d": {
+      "messages": 0,
+      "journal_entries": 1,
+      "sleep_logs": 1,
+      "mood_logs": 1,
+      "daily_tasks": 1,
+      "habit_events": 1,
+      "meditation_executions": 0,
+      "meditation_offers": 0,
+      "student_psychological_profiles": 1,
+      "student_memories": 0,
+      "user_patterns": 0,
+      "pattern_evidence": 0,
+      "user_insights": 0,
+      "session_reports": 0,
+      "apm_nodes": 0,
+      "apm_edges": 0,
+      "apm_events": 0,
+      "graph_nodes": 0,
+      "graph_relationships": 0,
+      "exam_buddy_nodes": 0,
+      "exam_buddy_relationships": 0,
+      "gds_snapshots": 0,
+      "user_risk_turns": 0,
+      "escalation_cases": 0,
+      "erasure_jobs": 0,
+      "users": 1,
+      "escalation_narrative_present": false
+    }
+  },
+  "profiles": {
+    "g": {
+      "http": 200,
+      "user_id": "usr_9eb3a0bd6c0a",
+      "conversation_keys": [
+        "session_count",
+        "recent_sessions",
+        "recent_session_summary",
+        "longitudinal_conversation_summary",
+        "recurring_conversation_topics",
+        "recent_emotional_changes",
+        "previously_discussed_issues",
+        "resolved_issues",
+        "unresolved_issues",
+        "last_session_at"
+      ],
+      "journaling_keys": [
+        "journal_summary",
+        "journal_mood_pattern",
+        "recurring_journal_themes",
+        "recent_journal_entries_summary",
+        "journal_entry_count_recent",
+        "journal_trend",
+        "last_journal_at"
+      ],
+      "has_enc_prefix": false,
+      "has_crisis_fixture": false,
+      "has_journal_marker": false
+    },
+    "h": {
+      "http": 200,
+      "user_id": "usr_398e87cc0c7d",
+      "conversation_keys": [
+        "session_count",
+        "recent_sessions",
+        "recent_session_summary",
+        "longitudinal_conversation_summary",
+        "recurring_conversation_topics",
+        "recent_emotional_changes",
+        "previously_discussed_issues",
+        "resolved_issues",
+        "unresolved_issues",
+        "last_session_at"
+      ],
+      "journaling_keys": [
+        "journal_summary",
+        "journal_mood_pattern",
+        "recurring_journal_themes",
+        "recent_journal_entries_summary",
+        "journal_entry_count_recent",
+        "journal_trend",
+        "last_journal_at"
+      ],
+      "has_enc_prefix": false,
+      "has_crisis_fixture": false,
+      "has_journal_marker": false
+    },
+    "g_is_g": true,
+    "h_is_h": true,
+    "cross": true
+  }
+}

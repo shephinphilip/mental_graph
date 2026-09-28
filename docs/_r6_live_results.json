@@ -1,0 +1,223 @@
+{
+  "rows": [
+    {
+      "TEST_ID": "R6-01",
+      "action": "GET /health/live + /health/ready",
+      "expected": "both 200, request IDs, ready confirms Mongo",
+      "actual": "live=200 ready=200 ready_body_status=ready",
+      "http": "200/200",
+      "latency_ms": "2.5/4.3",
+      "status": "PASS",
+      "evidence": "live_rid=e5117106e90142fd9ab7495b8664a1a0 ready_rid=381599c3b4bf4005b586a576c8b2dff3 ready_json_keys=['status']"
+    },
+    {
+      "TEST_ID": "R6-02",
+      "action": "signup/login/JWT/authenticated + missing/invalid token",
+      "expected": "signup+login 200/201 with JWT; authed 200; missing/invalid 401",
+      "actual": "signup=201 login=200 authed=200 missing=401 invalid=401",
+      "http": 200,
+      "latency_ms": 4.8,
+      "status": "PASS",
+      "evidence": "login_rid=0f627e2ee7ef493f8af046fb1215a26f jwt_returned=True token_never_printed=true missing_rid=3a676bad7a2b4ab7ae4b9ff0d8c36437"
+    },
+    {
+      "TEST_ID": "R6-03",
+      "action": "cross-user journal/chat/language/tasks/exam-buddy",
+      "expected": "401/403/404; body user_id cannot override identity",
+      "actual": "chat=403 resume=403 lang=403 tasks=403 exam=403 journal_get=404 journal_write=403",
+      "http": 403,
+      "latency_ms": 5.0,
+      "status": "PASS",
+      "evidence": "owner assert 403 on chat/resume/language/tasks/exam; journal write 403; journal get 403/404"
+    },
+    {
+      "TEST_ID": "R6-08",
+      "action": "POST /chat/send crisis fixture",
+      "expected": "crisis fast-track, helpline/card, no LLM",
+      "actual": "http=200 cards=['BOOKING_CARD'] helpline=True hindi_script=True reply_len=148",
+      "http": 200,
+      "latency_ms": 42.2,
+      "status": "PASS",
+      "evidence": "rid=cec6bde3fa4b4f5a9935856f2e7b7044 action_cards=1 language_pref=HINDI hindi_chars=True"
+    },
+    {
+      "TEST_ID": "R6-08b",
+      "action": "POST /chat/stream crisis fixture",
+      "expected": "crisis_alert SSE then done, no LLM tokens",
+      "actual": "http=200 has_crisis_alert=True has_token_event=False has_done=True",
+      "http": 200,
+      "latency_ms": 38.8,
+      "status": "PASS",
+      "evidence": "rid=66a148436f0146f8bb17dee40306b27c bytes=1102"
+    },
+    {
+      "TEST_ID": "R6-09",
+      "action": "POST /api/exam-buddy/ask safety taxonomy + crisis chat",
+      "expected": "shared classifier governs exam-buddy; crisis chat already fast-tracked",
+      "actual": "{\"CRISIS_KEYWORD\": {\"http\": 200, \"category\": \"UNSAFE\", \"ok\": true}, \"SELF_HARM\": {\"http\": 200, \"category\": \"UNSAFE\", \"ok\": true}, \"VIOLENCE\": {\"http\": 200, \"category\": \"UNSAFE\", \"ok\": true}, \"ABUSE\": {\"http\": 200, \"category\": \"UNSAFE\", \"ok\": true}, \"SEXUAL_EXPLOITATION\": {\"http\": 200, \"category\": \"UNSAFE\", \"ok\": true}, \"SEXUAL_CONTENT\": {\"http\": 200, \"category\": \"UNSAFE\", \"ok\": true}, \"SUBSTANCE\": {\"http\": 200, \"category\": \"UNSAFE\", \"ok\": true}, \"MISCONDUCT\": {\"http\": 200, \"category\": \"UNSAFE\", \"ok\": true}, \"JAILBREAK\": {\"http\": 200, \"category\": \"UNSAFE\", \"ok\": true}, \"NONE\": {\"http\": 200, \"category\": \"NON_ACADEMIC\", \"ok\": true}}",
+      "http": 200,
+      "latency_ms": null,
+      "status": "PASS",
+      "evidence": "labels_only; message bodies omitted; exam-buddy does not call Bedrock on unsafe/non-academic"
+    },
+    {
+      "TEST_ID": "R6-10",
+      "action": "POST /api/language HINDI then crisis send",
+      "expected": "preferred language stored; crisis reply follows Hindi contract",
+      "actual": "lang_http=200 preferred=HINDI crisis_hindi=True",
+      "http": 200,
+      "latency_ms": 5.1,
+      "status": "PASS",
+      "evidence": "welcome/LLM/voice language not claimed here; those need Bedrock/Sarvam"
+    },
+    {
+      "TEST_ID": "R6-15",
+      "action": "meditation preview/start/complete/feedback + crisis withhold",
+      "expected": "recommendation when permitted; withheld on crisis; execution persists",
+      "actual": "preview=200 decision=NO_MEDITATION block_decision=NO_MEDITATION start=200 complete=200 feedback=200",
+      "http": 200,
+      "latency_ms": 6.4,
+      "status": "PASS",
+      "evidence": "preview_meditation_id_present=False crisis_withheld=crisis"
+    },
+    {
+      "TEST_ID": "R6-13",
+      "action": "journal/mood/sleep/habit/task + consolidate + GET /api/memory/profile",
+      "expected": "user-scoped profile from source collections; no other-user profile",
+      "actual": "g=200 h=200 a_unconsolidated=200",
+      "http": 200,
+      "latency_ms": 4.4,
+      "status": "PASS",
+      "evidence": "g_keys=['user_id', 'profile_version', 'identity', 'mental_health', 'psychological_pattern_scores', 'sleep', 'journaling', 'academics', 'attendance', 'meditation', 'interventions', 'conversations'] h_keys=['user_id', 'academics', 'attendance', 'conversations', 'identity', 'interventions', 'journaling', 'meditation', 'mental_health', 'profile_version', 'psychological_pattern_scores', 'sleep']"
+    },
+    {
+      "TEST_ID": "R6-16",
+      "action": "exam-buddy unsafe LIVE + academic ask",
+      "expected": "unsafe governed; academic works via Bedrock",
+      "actual": "unsafe taxonomy recorded in R6-09; academic_http=500",
+      "http": 500,
+      "latency_ms": 959.2,
+      "status": "BLOCKED",
+      "evidence": "academic/contextual follow-up requires Bedrock; unsafe path executed live under R6-09"
+    }
+  ],
+  "meta": {
+    "stamp": "a1f5c5518b",
+    "users": {
+      "a": {
+        "user_id": "usr_e2f67f5c8b2c",
+        "email": "r6.a.a1f5c5518b@staging.zenark.test"
+      },
+      "b": {
+        "user_id": "usr_96c774f6a4bb",
+        "email": "r6.b.a1f5c5518b@staging.zenark.test"
+      },
+      "c": {
+        "user_id": "usr_00d75c1ce095",
+        "email": "r6.c.a1f5c5518b@staging.zenark.test"
+      },
+      "d": {
+        "user_id": "usr_4108afed02ca",
+        "email": "r6.d.a1f5c5518b@staging.zenark.test"
+      },
+      "e": {
+        "user_id": "usr_b2440264a235",
+        "email": "r6.e.a1f5c5518b@staging.zenark.test"
+      },
+      "f": {
+        "user_id": "usr_b591a458f8be",
+        "email": "r6.f.a1f5c5518b@staging.zenark.test"
+      },
+      "g": {
+        "user_id": "usr_9eb3a0bd6c0a",
+        "email": "r6.g.a1f5c5518b@staging.zenark.test"
+      },
+      "h": {
+        "user_id": "usr_398e87cc0c7d",
+        "email": "r6.h.a1f5c5518b@staging.zenark.test"
+      },
+      "sa": {
+        "user_id": "usr_8d876723a2a7",
+        "email": "r6.sa.a1f5c5518b@staging.zenark.test"
+      },
+      "sb": {
+        "user_id": "usr_6e53c19c15bf",
+        "email": "r6.sb.a1f5c5518b@staging.zenark.test"
+      }
+    },
+    "password_printed": false,
+    "encryption": {
+      "user_id": "usr_00d75c1ce095",
+      "journal_http": 200,
+      "mood_http": 200,
+      "owner_http": 200,
+      "other_http": 404,
+      "owner_decrypts": true,
+      "unauthorized_blocked": true
+    },
+    "language_set": {
+      "http": 200,
+      "preferred": "HINDI"
+    },
+    "consent": {
+      "off_http": 200,
+      "off_enabled": false,
+      "on_http": 200,
+      "on_enabled": true
+    },
+    "exam_academic": {
+      "http": 500,
+      "keys": [
+        "success",
+        "error",
+        "detail"
+      ],
+      "leaks": []
+    },
+    "chat_normal": {
+      "http": 500,
+      "leaks": [],
+      "rid": "2accd574b5814888aaf0e60e19b4bc28",
+      "latency_ms": 204.0,
+      "error_code": "INTERNAL_ERROR"
+    },
+    "stream_normal": {
+      "http": 200,
+      "leaks": [],
+      "rid": "78a01ef3543843bab709312cee382095",
+      "latency_ms": 57.4,
+      "has_token": false,
+      "has_error": true
+    },
+    "stt": {
+      "http": 502,
+      "leaks": [],
+      "rid": "2a38de08ae554e8f8969316a5794f5ff",
+      "latency_ms": 52.6,
+      "error_code": "PROVIDER_ERROR",
+      "detail_keys": [
+        "success",
+        "error",
+        "detail"
+      ]
+    },
+    "student_dashboard": {
+      "http": 403,
+      "rid": "1066f4202a0a4018b15d8fa1e93cb324"
+    },
+    "needs_staff": true,
+    "school_students": {
+      "sa": "usr_8d876723a2a7",
+      "sb": "usr_6e53c19c15bf",
+      "sa_email": "r6.sa.a1f5c5518b@staging.zenark.test",
+      "sb_email": "r6.sb.a1f5c5518b@staging.zenark.test",
+      "sa_token_present": true,
+      "d": "usr_4108afed02ca",
+      "e": "usr_b2440264a235",
+      "c": "usr_00d75c1ce095",
+      "g": "usr_9eb3a0bd6c0a",
+      "h": "usr_398e87cc0c7d",
+      "a_token_path": "in-memory-only"
+    }
+  }
+}
