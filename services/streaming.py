@@ -244,6 +244,58 @@ async def stream_chat_graph(
         message=user_message,
         opening_turn=False,
     )
+    council = inner_council_deliberate(
+        user_message,
+        history_for_hint,
+        opening_turn=False,
+        risk_intensity_score=risk_decision.score.risk_intensity_score,
+        persistent_distress=risk_decision.persistent_distress,
+        attach_psychiatrist_card=False,
+        action_card_context=None,
+        background_context=boundary_background(
+            graph_context,
+            user_context.get("adaptive_memory_context") or "",
+            user_context.get("pattern_context") or "",
+            user_context.get("journal_context") or "",
+            user_context.get("sleep_context") or "",
+            user_context.get("task_context") or "",
+        ),
+    )
+    stance_block = council.as_prompt_block()
+    ordinary_stance = stance_block
+    proactive_event_id = ""
+    proactive_question = ""
+    proactive_topic = ""
+    proactive_language = str(user_context.get("preferred_language") or "ENGLISH")
+    proactive_script = str(user_context.get("response_script") or "LATIN")
+    try:
+        from services.proactive.service import (
+            evaluate_for_chat_turn,
+            stance_with_proactive,
+        )
+
+        proactive = await evaluate_for_chat_turn(
+            db,
+            user_id=user_id,
+            session_id=session_id,
+            user_message=user_message,
+            opening_turn=False,
+            message_history=history_for_hint,
+            user_context=user_context,
+            risk_intensity=risk_decision.score.risk_intensity_score,
+            persistent_distress=risk_decision.persistent_distress,
+            council=council,
+            graph_context=graph_context,
+        )
+        if proactive.decision == "PROACTIVE_QUESTION" and proactive.question:
+            stance_block = stance_with_proactive(stance_block, proactive.question)
+            proactive_event_id = proactive.event_id
+            proactive_question = proactive.question
+            proactive_topic = proactive.topic
+            proactive_language = proactive.language or proactive_language
+            proactive_script = proactive.script or proactive_script
+    except Exception:
+        logger.info("Proactive question skipped during stream user=%s", user_id)
     formatted_system = format_system_prompt(
         graph_context=graph_context,
         user_memory=user_context.get("user_memory"),
@@ -267,23 +319,7 @@ async def stream_chat_graph(
             opening_turn=False,
             message_history=history_for_hint,
         ),
-        response_stance=inner_council_deliberate(
-            user_message,
-            history_for_hint,
-            opening_turn=False,
-            risk_intensity_score=risk_decision.score.risk_intensity_score,
-            persistent_distress=risk_decision.persistent_distress,
-            attach_psychiatrist_card=False,
-            action_card_context=None,
-            background_context=boundary_background(
-                graph_context,
-                user_context.get("adaptive_memory_context") or "",
-                user_context.get("pattern_context") or "",
-                user_context.get("journal_context") or "",
-                user_context.get("sleep_context") or "",
-                user_context.get("task_context") or "",
-            ),
-        ).as_prompt_block(),
+        response_stance=stance_block,
         action_card_context="",
     )
 
@@ -302,73 +338,111 @@ async def stream_chat_graph(
     messages = sanitize_messages_for_bedrock(raw_messages)
 
     # ── Step 5: Stream from LLM (Pre-first-token fallback contract) ───────────
+    # Proactive turns buffer the full reply and validate it before any token
+    # is emitted. Ordinary turns keep token-by-token astream unchanged.
     primary_llm = get_primary_llm()
     full_response_chunks = []
     client_token_emitted = False
+    buffer_proactive = bool(proactive_event_id)
 
-    try:
-        async for chunk in primary_llm.astream(messages):
-            token = _extract_token_text(chunk)
-            if not token:
-                continue
-            full_response_chunks.append(token)
+    async def _ainvoke_complete(llm) -> str:
+        from integrations.resilience import resilient_ainvoke
 
-            if "<<<ACTION_CARD" not in token and "ACTION_CARD>>>" not in token:
-                event_payload = json.dumps({"token": token})
-                yield f"event: token\ndata: {event_payload}\n\n"
-                client_token_emitted = True
+        response = await resilient_ainvoke(llm, messages)
+        if isinstance(response, str):
+            return response
+        return getattr(response, "content", None) or str(response)
 
-    except Exception as exc:
-        logger.warning(
-            "Primary LLM streaming error (client_token_emitted=%s): %s",
-            client_token_emitted,
-            exc,
-        )
-
-        # Provider switching is legal only before the client has received any
-        # token. Discard hidden/empty primary chunks before starting Sarvam.
-        if not client_token_emitted:
-            full_response_chunks.clear()
-            logger.info("Primary failed before first token; switching to Sarvam.")
+    if buffer_proactive:
+        try:
+            buffered = await _ainvoke_complete(primary_llm)
+            full_response_chunks.append(buffered)
+        except Exception as exc:
+            logger.warning("Primary LLM proactive buffer failed: %s", exc)
             try:
                 fallback_llm = get_fallback_llm()
-                async for chunk in fallback_llm.astream(messages):
-                    token = _extract_token_text(chunk)
-                    if not token:
-                        continue
-                    full_response_chunks.append(token)
-
-                    if "<<<ACTION_CARD" not in token and "ACTION_CARD>>>" not in token:
-                        event_payload = json.dumps({"token": token})
-                        yield f"event: token\ndata: {event_payload}\n\n"
+                buffered = await _ainvoke_complete(fallback_llm)
+                full_response_chunks.append(buffered)
             except Exception as fallback_exc:
-                logger.error("Fallback LLM streaming also failed: %s", fallback_exc)
+                logger.error("Fallback LLM proactive buffer also failed: %s", fallback_exc)
                 payload = {
                     "error": "Unable to start response stream",
                     "retryable": True,
                 }
                 yield f"event: error\ndata: {json.dumps(payload)}\n\n"
-                return
-        else:
-            # Visible output already left the socket. Store it as incomplete
-            # and do not run extraction or treat it as a finished answer.
-            payload = {
-                "error": "Response stream interrupted",
-                "retryable": True,
-            }
-            yield f"event: error\ndata: {json.dumps(payload)}\n\n"
-            try:
-                await persist_user_and_assistant(
+                from services.proactive.delivery import suppress_undelivered
+
+                await suppress_undelivered(
                     db,
                     user_id=user_id,
-                    session_id=session_id,
-                    user_message=user_message,
-                    assistant_reply="".join(full_response_chunks),
-                    incomplete=True,
+                    event_id=proactive_event_id,
+                    reason="generation_failed",
                 )
-            except Exception:
-                logger.exception("Failed to mark incomplete stream user=%s", user_id)
-            return
+                return
+    else:
+        try:
+            async for chunk in primary_llm.astream(messages):
+                token = _extract_token_text(chunk)
+                if not token:
+                    continue
+                full_response_chunks.append(token)
+
+                if "<<<ACTION_CARD" not in token and "ACTION_CARD>>>" not in token:
+                    event_payload = json.dumps({"token": token})
+                    yield f"event: token\ndata: {event_payload}\n\n"
+                    client_token_emitted = True
+
+        except Exception as exc:
+            logger.warning(
+                "Primary LLM streaming error (client_token_emitted=%s): %s",
+                client_token_emitted,
+                exc,
+            )
+
+            # Provider switching is legal only before the client has received any
+            # token. Discard hidden/empty primary chunks before starting Sarvam.
+            if not client_token_emitted:
+                full_response_chunks.clear()
+                logger.info("Primary failed before first token; switching to Sarvam.")
+                try:
+                    fallback_llm = get_fallback_llm()
+                    async for chunk in fallback_llm.astream(messages):
+                        token = _extract_token_text(chunk)
+                        if not token:
+                            continue
+                        full_response_chunks.append(token)
+
+                        if "<<<ACTION_CARD" not in token and "ACTION_CARD>>>" not in token:
+                            event_payload = json.dumps({"token": token})
+                            yield f"event: token\ndata: {event_payload}\n\n"
+                except Exception as fallback_exc:
+                    logger.error("Fallback LLM streaming also failed: %s", fallback_exc)
+                    payload = {
+                        "error": "Unable to start response stream",
+                        "retryable": True,
+                    }
+                    yield f"event: error\ndata: {json.dumps(payload)}\n\n"
+                    return
+            else:
+                # Visible output already left the socket. Store it as incomplete
+                # and do not run extraction or treat it as a finished answer.
+                payload = {
+                    "error": "Response stream interrupted",
+                    "retryable": True,
+                }
+                yield f"event: error\ndata: {json.dumps(payload)}\n\n"
+                try:
+                    await persist_user_and_assistant(
+                        db,
+                        user_id=user_id,
+                        session_id=session_id,
+                        user_message=user_message,
+                        assistant_reply="".join(full_response_chunks),
+                        incomplete=True,
+                    )
+                except Exception:
+                    logger.exception("Failed to mark incomplete stream user=%s", user_id)
+                return
 
     # ── Step 6: Post-processing — Action Card Parsing ─────────────────────────
     full_text = "".join(full_response_chunks)
@@ -389,6 +463,7 @@ async def stream_chat_graph(
 
     script = str(user_context.get("response_script") or "LATIN")
     pattern_supplied = "USER PATTERN CONTEXT" in str(user_context.get("pattern_context") or "")
+    used_generic_fallback = False
     verdict = validate_reply(clean_reply, script=script, pattern_supplied=pattern_supplied)
     if not verdict.ok:
         try:
@@ -413,11 +488,14 @@ async def stream_chat_graph(
             clean_reply = retried if verdict.ok else FALLBACK_REPLY
         except Exception:
             clean_reply = FALLBACK_REPLY
+            used_generic_fallback = True
             verdict = validate_reply(clean_reply, script=script, pattern_supplied=pattern_supplied)
         if not verdict.ok:
             clean_reply = FALLBACK_REPLY
+            used_generic_fallback = True
         cards = []
-        yield f"event: correction\ndata: {json.dumps({'reply': clean_reply})}\n\n"
+        if not buffer_proactive:
+            yield f"event: correction\ndata: {json.dumps({'reply': clean_reply})}\n\n"
     else:
         label = classify_message(user_message)
         if label is not SafetyClass.NONE:
@@ -445,6 +523,112 @@ async def stream_chat_graph(
             )
             cards = suppress_ordinary_cards(user_message, cards)
 
+    proactive_final_ok = False
+    if buffer_proactive:
+        from services.proactive.delivery import (
+            ensure_final_proactive_reply,
+            suppress_undelivered,
+        )
+
+        if used_generic_fallback:
+            await suppress_undelivered(
+                db,
+                user_id,
+                proactive_event_id,
+                "generation_failed",
+            )
+        else:
+            async def _proactive_rewrite(instruction: str) -> str:
+                from integrations.resilience import resilient_ainvoke
+
+                retry = await resilient_ainvoke(
+                    get_primary_llm(),
+                    sanitize_messages_for_bedrock(
+                        messages + [HumanMessage(content=instruction)]
+                    ),
+                )
+                text = retry.content if hasattr(retry, "content") else str(retry)
+                return text if isinstance(text, str) else str(text)
+
+            async def _ordinary_fallback(instruction: str) -> str:
+                from integrations.resilience import resilient_ainvoke
+
+                ordinary_system = format_system_prompt(
+                    graph_context=graph_context,
+                    user_memory=user_context.get("user_memory"),
+                    recent_moods=user_context.get("recent_moods"),
+                    active_habits=user_context.get("active_habits"),
+                    dropped_session_context=dropped_session_hint(history_for_hint),
+                    user_profile=user_context.get("user_profile"),
+                    academic_context=user_context.get("academic_context"),
+                    attendance_context=user_context.get("attendance_context"),
+                    assessment_context=user_context.get("assessment_context"),
+                    last_session_context=user_context.get("last_session_context"),
+                    adaptive_memory_context=user_context.get("adaptive_memory_context"),
+                    pattern_context=user_context.get("pattern_context"),
+                    sleep_context=user_context.get("sleep_context"),
+                    journal_context=user_context.get("journal_context"),
+                    task_context=user_context.get("task_context"),
+                    care_context=user_context.get("care_context"),
+                    student_profile_context=user_context.get("student_profile_context"),
+                    language_instruction=user_context.get("language_instruction"),
+                    session_phase=session_phase_instructions(
+                        opening_turn=False,
+                        message_history=history_for_hint,
+                    ),
+                    response_stance=ordinary_stance,
+                    action_card_context="",
+                )
+                ordinary_messages = [SystemMessage(content=ordinary_system)]
+                for msg in history_for_hint:
+                    role = msg.get("role", "user")
+                    content = msg.get("content", "")
+                    if role == "user":
+                        ordinary_messages.append(HumanMessage(content=content))
+                    else:
+                        ordinary_messages.append(AIMessage(content=content))
+                ordinary_messages.append(HumanMessage(content=anonymized_user_message))
+                ordinary_messages.append(HumanMessage(content=instruction))
+                retry = await resilient_ainvoke(
+                    get_primary_llm(),
+                    sanitize_messages_for_bedrock(ordinary_messages),
+                )
+                text = retry.content if hasattr(retry, "content") else str(retry)
+                return text if isinstance(text, str) else str(text)
+
+            final_turn = await ensure_final_proactive_reply(
+                clean_reply,
+                question=proactive_question,
+                topic=proactive_topic,
+                script=script,
+                language=proactive_language,
+                user_id=user_id,
+                event_id=proactive_event_id,
+                pattern_supplied=pattern_supplied,
+                rewrite=_proactive_rewrite,
+                ordinary_fallback=_ordinary_fallback,
+            )
+            clean_reply = final_turn.text
+            proactive_final_ok = final_turn.delivered
+            if not final_turn.delivered:
+                await suppress_undelivered(
+                    db,
+                    user_id,
+                    proactive_event_id,
+                    final_turn.reason,
+                )
+                cards = []
+            else:
+                clean_reply, cards = parse_action_cards(clean_reply)
+                label = classify_message(user_message)
+                if label is not SafetyClass.NONE:
+                    cards = []
+
+        visible = clean_reply or ""
+        if visible:
+            yield f"event: token\ndata: {json.dumps({'token': visible})}\n\n"
+            client_token_emitted = True
+
     if cards:
         for card in cards:
             card_payload = json.dumps(card.model_dump())
@@ -469,7 +653,7 @@ async def stream_chat_graph(
 
     # ── Step 7: Persist Messages (idempotent, encrypted, ordered) ─────────────
     try:
-        await persist_user_and_assistant(
+        persist_result = await persist_user_and_assistant(
             db,
             user_id=user_id,
             session_id=session_id,
@@ -478,6 +662,22 @@ async def stream_chat_graph(
             response_language=str(user_context.get("preferred_language") or ""),
             response_script=str(user_context.get("response_script") or ""),
         )
+        if proactive_event_id and proactive_final_ok:
+            assistant_doc = (persist_result or {}).get("assistant_doc") or {}
+            message_id = str(assistant_doc.get("message_id") or "")
+            if message_id:
+                try:
+                    from services.proactive.service import mark_delivered
+
+                    await mark_delivered(
+                        db,
+                        user_id,
+                        proactive_event_id,
+                        message_id=message_id,
+                        session_id=session_id,
+                    )
+                except Exception:
+                    logger.info("Proactive delivered mark skipped stream user=%s", user_id)
         from services.extraction import run_background_extraction
 
         await run_background_extraction(

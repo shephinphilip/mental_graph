@@ -170,6 +170,22 @@ class Settings(BaseSettings):
     MEMORY_DECAY_PER_DAY: float = 0.01
     MEMORY_MIN_IMPORTANCE: float = 0.2
 
+    # ── Proactive question engine (in-conversation JITAI) ────────────────────
+    # Prefer no question over another question too soon. Values follow the
+    # same env-tunable convention as risk-card and pattern lookbacks.
+    PROACTIVE_COOLDOWN_HOURS: float = 48.0
+    PROACTIVE_MAX_ATTEMPTS_WINDOW_HOURS: float = 168.0
+    PROACTIVE_MAX_ATTEMPTS_PER_WINDOW: int = 2
+    PROACTIVE_IGNORE_SUPPRESSION_HOURS: float = 72.0
+    PROACTIVE_DUPLICATE_LOOKBACK_HOURS: float = 72.0
+    PROACTIVE_OPPORTUNITY_TTL_HOURS: float = 12.0
+    PROACTIVE_MIN_CONFIDENCE: float = 0.35
+    PROACTIVE_GRAPH_NODE_LIMIT: int = 8
+    PROACTIVE_GRAPH_PATH_LIMIT: int = 4
+    PROACTIVE_VALIDATOR_MAX_RETRIES: int = 1
+    PROACTIVE_FINAL_MAX_RETRIES: int = 1
+    PROACTIVE_LOOKBACK_DAYS: int = 60
+
     # ── Meditation ranking ──────────────────────────────────────────────────
     # State match (PAD + latent) outweighs personal history so a new feeling
     # is not swallowed by an old favorite. Friction and cognitive load sit

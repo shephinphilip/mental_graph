@@ -66,6 +66,12 @@ def test_compatibility_and_v1_paths_are_both_mounted():
         ("/api/v1/voice/stt", "POST"),
         ("/ws/psychiatrist-voice", "WS"),
         ("/api/v1/ws/psychiatrist-voice", "WS"),
+        ("/api/proactive/evaluate", "POST"),
+        ("/api/v1/proactive/evaluate", "POST"),
+        ("/api/proactive/pending", "GET"),
+        ("/api/v1/proactive/pending", "GET"),
+        ("/api/proactive/respond", "POST"),
+        ("/api/v1/proactive/respond", "POST"),
     ]:
         assert (path, method) in mounted, f"{method} {path} is not mounted"
 

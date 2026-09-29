@@ -23,6 +23,12 @@ ALLOWED_METRICS = frozenset(
         "erasure_job_status",
         "provider_error",
         "provider_fallback",
+        "proactive_decision",
+        "proactive_trigger_type",
+        "proactive_suppression",
+        "proactive_status",
+        "proactive_validation",
+        "proactive_retry",
     }
 )
 

@@ -368,6 +368,41 @@ async def generate_node(state: ChatState) -> dict:
             context.get("task_context") or "",
         ),
     )
+    stance_block = council.as_prompt_block()
+    ordinary_stance = stance_block
+    proactive_event_id = ""
+    proactive_question = ""
+    proactive_topic = ""
+    proactive_language = str(context.get("preferred_language") or "ENGLISH")
+    proactive_script = str(context.get("response_script") or "LATIN")
+    try:
+        from services.proactive.service import (
+            evaluate_for_chat_turn,
+            stance_with_proactive,
+        )
+
+        proactive = await evaluate_for_chat_turn(
+            state["db"],
+            user_id=state.get("user_id", ""),
+            session_id=state.get("session_id", ""),
+            user_message=state.get("user_message", ""),
+            opening_turn=bool(state.get("opening_turn")),
+            message_history=message_history,
+            user_context=context,
+            risk_intensity=risk_decision.score.risk_intensity_score,
+            persistent_distress=risk_decision.persistent_distress,
+            council=council,
+            graph_context=state.get("graph_context") or "",
+        )
+        if proactive.decision == "PROACTIVE_QUESTION" and proactive.question:
+            stance_block = stance_with_proactive(stance_block, proactive.question)
+            proactive_event_id = proactive.event_id
+            proactive_question = proactive.question
+            proactive_topic = proactive.topic
+            proactive_language = proactive.language
+            proactive_script = proactive.script
+    except Exception:
+        logger.info("Proactive question skipped for user=%s", state.get("user_id", ""))
     formatted_system = format_system_prompt(
         graph_context=state.get("graph_context"),
         user_memory=context.get("user_memory"),
@@ -391,7 +426,7 @@ async def generate_node(state: ChatState) -> dict:
             opening_turn=bool(state.get("opening_turn")),
             message_history=message_history,
         ),
-        response_stance=council.as_prompt_block(),
+        response_stance=stance_block,
         action_card_context="",
     )
 
@@ -454,6 +489,103 @@ async def generate_node(state: ChatState) -> dict:
             raw_output = FALLBACK_REPLY
             used_fallback = True
 
+    proactive_final_ok = False
+    if proactive_event_id and used_fallback:
+        from services.proactive.delivery import suppress_undelivered
+
+        await suppress_undelivered(
+            state["db"],
+            state.get("user_id", ""),
+            proactive_event_id,
+            "generation_failed",
+        )
+    elif proactive_event_id:
+        from services.proactive.delivery import (
+            ensure_final_proactive_reply,
+            suppress_undelivered,
+        )
+
+        async def _proactive_rewrite(instruction: str) -> str:
+            from langchain_core.messages import HumanMessage as RewriteMessage
+
+            retry = await resilient_ainvoke(
+                llm,
+                sanitize_messages_for_bedrock(
+                    messages
+                    + [RewriteMessage(content=instruction)]
+                ),
+            )
+            text = retry.content if hasattr(retry, "content") else str(retry)
+            return text if isinstance(text, str) else str(text)
+
+        async def _ordinary_fallback(instruction: str) -> str:
+            from langchain_core.messages import HumanMessage as RewriteMessage
+
+            ordinary_system = format_system_prompt(
+                graph_context=state.get("graph_context"),
+                user_memory=context.get("user_memory"),
+                recent_moods=context.get("recent_moods"),
+                active_habits=context.get("active_habits"),
+                dropped_session_context=context.get("dropped_session_context"),
+                user_profile=context.get("user_profile"),
+                academic_context=context.get("academic_context"),
+                attendance_context=context.get("attendance_context"),
+                assessment_context=context.get("assessment_context"),
+                last_session_context=context.get("last_session_context"),
+                adaptive_memory_context=context.get("adaptive_memory_context"),
+                pattern_context=context.get("pattern_context"),
+                sleep_context=context.get("sleep_context"),
+                journal_context=context.get("journal_context"),
+                task_context=context.get("task_context"),
+                care_context=context.get("care_context"),
+                student_profile_context=context.get("student_profile_context"),
+                language_instruction=context.get("language_instruction"),
+                session_phase=session_phase_instructions(
+                    opening_turn=bool(state.get("opening_turn")),
+                    message_history=message_history,
+                ),
+                response_stance=ordinary_stance,
+                action_card_context="",
+            )
+            ordinary_messages = [SystemMessage(content=ordinary_system)]
+            for msg in message_history:
+                if msg["role"] == "user":
+                    ordinary_messages.append(HumanMessage(content=msg["content"]))
+                elif msg["role"] == "assistant":
+                    ordinary_messages.append(AIMessage(content=msg["content"]))
+            if current_user_message:
+                ordinary_messages.append(
+                    HumanMessage(content=anonymize_text(current_user_message))
+                )
+            ordinary_messages.append(RewriteMessage(content=instruction))
+            retry = await resilient_ainvoke(
+                llm, sanitize_messages_for_bedrock(ordinary_messages)
+            )
+            text = retry.content if hasattr(retry, "content") else str(retry)
+            return text if isinstance(text, str) else str(text)
+
+        final_turn = await ensure_final_proactive_reply(
+            raw_output,
+            question=proactive_question,
+            topic=proactive_topic,
+            script=script,
+            language=proactive_language,
+            user_id=state.get("user_id", ""),
+            event_id=proactive_event_id,
+            pattern_supplied=pattern_supplied,
+            rewrite=_proactive_rewrite,
+            ordinary_fallback=_ordinary_fallback,
+        )
+        raw_output = final_turn.text
+        proactive_final_ok = final_turn.delivered
+        if not final_turn.delivered:
+            await suppress_undelivered(
+                state["db"],
+                state.get("user_id", ""),
+                proactive_event_id,
+                final_turn.reason,
+            )
+
     label = classify_message(state.get("user_message", ""))
     offer = await choose_stepping_stone(
         state["db"],
@@ -479,6 +611,8 @@ async def generate_node(state: ChatState) -> dict:
         "response_language": context.get("preferred_language") or "",
         "response_script": script,
         "attach_psychiatrist_card": False,
+        "proactive_event_id": proactive_event_id,
+        "proactive_final_ok": proactive_final_ok,
         "risk_assessment": {
             **risk_decision.score.as_dict(),
             "persistent_distress": risk_decision.persistent_distress,
@@ -557,9 +691,10 @@ async def format_output_node(state: ChatState) -> dict:
         )
 
     # Step 2: Persist history as separate role-tagged records (idempotent).
+    persist_result = None
     if state.get("opening_turn") and not state.get("persist_user_message", True):
         ctx = state.get("user_context") or {}
-        await persist_welcome_message(
+        welcome_doc, _inserted = await persist_welcome_message(
             db,
             user_id=user_id,
             session_id=session_id,
@@ -567,8 +702,9 @@ async def format_output_node(state: ChatState) -> dict:
             response_language=str(ctx.get("preferred_language") or state.get("response_language") or ""),
             response_script=str(ctx.get("response_script") or state.get("response_script") or ""),
         )
+        persist_result = {"assistant_doc": welcome_doc, "assistant_inserted": _inserted}
     else:
-        await persist_user_and_assistant(
+        persist_result = await persist_user_and_assistant(
             db,
             user_id=user_id,
             session_id=session_id,
@@ -577,6 +713,24 @@ async def format_output_node(state: ChatState) -> dict:
             response_language=str(state.get("response_language") or ""),
             response_script=str(state.get("response_script") or ""),
         )
+
+    event_id = str(state.get("proactive_event_id") or "")
+    if event_id and state.get("proactive_final_ok"):
+        assistant_doc = (persist_result or {}).get("assistant_doc") or {}
+        message_id = str(assistant_doc.get("message_id") or "")
+        if message_id:
+            try:
+                from services.proactive.service import mark_delivered
+
+                await mark_delivered(
+                    db,
+                    user_id,
+                    event_id,
+                    message_id=message_id,
+                    session_id=session_id,
+                )
+            except Exception:
+                logger.info("Proactive delivered mark skipped session=%s", session_id)
 
     # Step 3: Log any action cards emitted in this turn for analytics/audit
     if action_cards:

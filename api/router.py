@@ -20,6 +20,7 @@ from api.routes import (
     meditation,
     memory,
     patterns,
+    proactive,
     reports,
     sleep,
     streaming,
@@ -44,6 +45,7 @@ def _mount_domain(router: APIRouter, *, api_prefix: str) -> None:
     router.include_router(voice.router)
     router.include_router(language.router, prefix=api_prefix)
     router.include_router(memory.router, prefix=api_prefix)
+    router.include_router(proactive.router, prefix=api_prefix)
     router.include_router(patterns.router, prefix=api_prefix)
     router.include_router(sleep.router, prefix=api_prefix)
     router.include_router(tracking.router, prefix=api_prefix)

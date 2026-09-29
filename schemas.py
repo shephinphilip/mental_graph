@@ -200,6 +200,34 @@ class PersonalizationConsentRequest(BaseModel):
     source: str = "student"
 
 
+class ProactiveEvaluateRequest(BaseModel):
+    """Evaluate whether a proactive question is justified right now."""
+
+    user_id: Optional[str] = None
+    session_id: str = ""
+    message: str = ""
+    opening_turn: bool = False
+
+
+class ProactiveRespondRequest(BaseModel):
+    """Record the user's reply to a previously approved proactive question."""
+
+    user_id: Optional[str] = None
+    event_id: str = Field(min_length=1, max_length=120)
+    message: str = Field(default="", max_length=MAX_CHAT_MESSAGE_CHARS)
+    outcome: str = "acknowledged"
+
+
+class ProactiveDecisionResponse(BaseModel):
+    """Public proactive decision. Internals stay off the wire."""
+
+    decision: str
+    event_id: Optional[str] = None
+    question: Optional[str] = None
+    reason: Optional[str] = None
+    status: Optional[str] = None
+
+
 class LanguagePreferenceRequest(BaseModel):
     language: str
     user_id: Optional[str] = None

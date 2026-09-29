@@ -40,6 +40,7 @@ Exact `collection.field` values sealed before the Mongo write:
 | `session_reports` | `psychiatric_summary` | same | same | same |
 | `user_insights` | `insight_summary` | `services/extraction.py` `_persist_extraction` | extraction persistence only | Not a student-facing field in the frozen API |
 | `graph_nodes` | `name` | `services/mongo_graph.py` `upsert_node` | graph prompt formatting (`open_text`) | Not returned as a student transcript; used in prompts |
+| `proactive_questions` | `question` | `services/proactive/store.py` `insert_opportunity` | pending/evaluate/chat dispatch (`open_text`) | Decrypted to the authenticated owner on pending/evaluate |
 
 Fail-closed: encrypt success stores ciphertext; encrypt failure raises `CryptoIntegrityError` and does **not** write plaintext.
 
@@ -178,7 +179,7 @@ The server holds the key, opens content for safety and product behavior, and can
 
 ## 11. Erasure
 
-`services/erasure.py` deletes owned rows with `delete_many({user_id})`. It does not decrypt first. Every collection that holds a sealed field is in `_OWNED` (`messages`, `journal_entries`, `mood_logs`, `student_memories`, `session_reports`, `user_insights`, `graph_nodes`).
+`services/erasure.py` deletes owned rows with `delete_many({user_id})`. It does not decrypt first. Every collection that holds a sealed field is in `_OWNED` (`messages`, `journal_entries`, `mood_logs`, `student_memories`, `session_reports`, `user_insights`, `graph_nodes`, `proactive_questions`).
 
 Sealed ciphertext cannot remain because a decrypt failed: deletion is by owner id, not by opened content.
 
@@ -200,6 +201,7 @@ session_reports.summary
 session_reports.psychiatric_summary
 user_insights.insight_summary
 graph_nodes.name
+proactive_questions.question
 
 PLAINTEXT_NARRATIVE:
 journal_entries.title
@@ -236,6 +238,7 @@ student_psychological_profiles.conversations
 | Reports | `session_reports` | `summary`, `psychiatric_summary` | `session_report` | welcome/report context | Yes | Yes — implemented | Yes, decrypted |
 | Reports | `session_reports` | `events`, `proposed_tasks` | same | welcome, tasks | No | Deferred | Yes |
 | Graph | `graph_nodes` | `name` | `mongo_graph` | prompt | Yes | Yes — implemented | Indirect |
+| Proactive | `proactive_questions` | `question` | `services/proactive/store` | pending/evaluate/chat | Yes | Yes — implemented | Yes, decrypted to owner |
 | Graph | `graph_relationships` | `relation`, `properties` | `mongo_graph` | prompt | No (sanitized structured keys) | Intentional MVP exception | Indirect |
 | Escalation | `escalation_cases` | `reason`, status | `escalation` | care | No | Enum/status N/A | Limited |
 | Consultation | `consultation_notifications` | — | none currently | unread count | N/A | — | Count only |

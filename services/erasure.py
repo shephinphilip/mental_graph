@@ -31,6 +31,7 @@ _OWNED = (
     ("apm_events", "user_id"),
     ("graph_nodes", "user_id"),
     ("graph_relationships", "user_id"),
+    ("proactive_questions", "user_id"),
     ("exam_buddy_nodes", "user_id"),
     ("exam_buddy_relationships", "user_id"),
     ("gds_snapshots", "user_id"),

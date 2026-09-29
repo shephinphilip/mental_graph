@@ -5,6 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 
 import pytest
+from mongomock_motor import AsyncMongoMockClient
 
 from services.erasure import _OWNED
 from services.security import decrypt_payload, encrypt_payload, open_text, seal_text
@@ -21,6 +22,7 @@ SEALED = (
     "session_reports.psychiatric_summary",
     "user_insights.insight_summary",
     "graph_nodes.name",
+    "proactive_questions.question",
 )
 
 PLAINTEXT_NARRATIVE = (
@@ -169,6 +171,29 @@ async def test_every_sealed_writer_stores_ciphertext():
     await upsert_node(GraphDB(), "user_a", node_id, "Emotion", SECRET_BODY)
     assert nodes.docs[0]["name"].startswith("enc::")
     assert SECRET_BODY not in nodes.docs[0]["name"]
+
+    from services.proactive.store import ensure_proactive_indexes, insert_opportunity
+
+    proactive_db = AsyncMongoMockClient()["proactive_enc"]
+    await ensure_proactive_indexes(proactive_db)
+    stored_q = await insert_opportunity(
+        proactive_db,
+        user_id="user_a",
+        event_id="pq_test__nonce1",
+        execution_nonce="nonce1",
+        trigger_type="FOLLOW_UP_ON_PREVIOUS_CONTEXT",
+        question=SECRET_BODY,
+        receptivity_state="RECEPTIVE",
+        confidence=0.5,
+        risk_state="none",
+        language="ENGLISH",
+        script="LATIN",
+        source_node_ids=[],
+        status="APPROVED",
+    )
+    saved = stored_q["doc"]
+    assert saved["question"].startswith("enc::")
+    assert SECRET_BODY not in saved["question"]
 
     from services.session_report import generate_session_report
     from tests.test_tasks import _db as tasks_db

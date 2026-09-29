@@ -46,10 +46,12 @@ async def ensure_all_indexes(db) -> None:
     from services.escalation import ensure_escalation_indexes
     from services.gds import ensure_gds_indexes
     from services.stepping_stone import ensure_stepping_indexes
+    from services.proactive.store import ensure_proactive_indexes
 
     await ensure_gds_indexes(db)
     await ensure_escalation_indexes(db)
     await ensure_consent_indexes(db)
     await ensure_erasure_indexes(db)
     await ensure_stepping_indexes(db)
+    await ensure_proactive_indexes(db)
     logger.info("All domain indexes ensured")
