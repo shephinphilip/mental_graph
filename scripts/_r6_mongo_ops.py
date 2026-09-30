@@ -6,10 +6,17 @@ import os
 import sys
 import uuid
 from datetime import datetime, timezone
+from pathlib import Path
+
+_ROOT = Path(__file__).resolve().parents[1]
+for _entry in (_ROOT / "dashboard", _ROOT / "backend-core", _ROOT / "backend-agent"):
+    _text = str(_entry)
+    if _text not in sys.path:
+        sys.path.insert(0, _text)
 
 from pymongo import MongoClient
 
-from services.users import hash_password
+from backend_core.users import hash_password
 
 
 def client() -> MongoClient:

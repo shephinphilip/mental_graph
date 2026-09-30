@@ -18,8 +18,10 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-if str(ROOT) not in sys.path:
-    sys.path.insert(0, str(ROOT))
+for _entry in (ROOT / "dashboard", ROOT / "backend-core", ROOT / "backend-agent"):
+    _text = str(_entry)
+    if _text not in sys.path:
+        sys.path.insert(0, _text)
 
 from motor.motor_asyncio import AsyncIOMotorClient
 

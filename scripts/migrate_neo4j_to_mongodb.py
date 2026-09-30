@@ -17,7 +17,15 @@ Usage:
 import argparse
 import asyncio
 import logging
+import sys
+from pathlib import Path
 from typing import Any, Dict
+
+_ROOT = Path(__file__).resolve().parents[1]
+for _entry in (_ROOT / "dashboard", _ROOT / "backend-core", _ROOT / "backend-agent"):
+    _text = str(_entry)
+    if _text not in sys.path:
+        sys.path.insert(0, _text)
 
 from motor.motor_asyncio import AsyncIOMotorClient
 from neo4j import AsyncGraphDatabase

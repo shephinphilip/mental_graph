@@ -16,5 +16,6 @@ canvases
 streamlit_app.py
 verify_*.py
 meditation/meditation audios
+backend-agent/meditation/meditation audios
 .cursor
 agent-transcripts

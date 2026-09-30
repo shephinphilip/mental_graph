@@ -1,9 +1,12 @@
+# Compatibility build for `docker build .`.
+# The canonical agent image is backend-agent/Dockerfile. Keep the two files aligned.
 FROM python:3.11-slim
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     APP_ENV=production \
-    PIP_NO_CACHE_DIR=1
+    PIP_NO_CACHE_DIR=1 \
+    PYTHONPATH=/app/backend-core:/app/backend-agent
 
 WORKDIR /app
 
@@ -12,9 +15,12 @@ RUN addgroup --system zenark && adduser --system --ingroup zenark --home /app ze
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-COPY --chown=zenark:zenark . .
+COPY --chown=zenark:zenark backend-core /app/backend-core
+COPY --chown=zenark:zenark backend-agent /app/backend-agent
 
 USER zenark
+
+WORKDIR /app/backend-agent
 
 EXPOSE 8000
 

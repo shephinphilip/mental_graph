@@ -37,13 +37,11 @@ services:
   api:
     build:
       context: .
-      dockerfile: Dockerfile
-    image: zenark-staging
+      dockerfile: backend-agent/Dockerfile
+    image: zenark-staging-agent
     container_name: zenark-staging-api
     networks:
       - zenark-staging
-    ports:
-      - "8000:8000"
     env_file:
       - .env.staging.local
     environment:
@@ -54,4 +52,58 @@ services:
     depends_on:
       mongo:
         condition: service_healthy
+    restart: unless-stopped
+
+  core:
+    build:
+      context: .
+      dockerfile: backend-core/Dockerfile
+    image: zenark-staging-core
+    container_name: zenark-staging-core
+    networks:
+      - zenark-staging
+    env_file:
+      - .env.staging.local
+    environment:
+      APP_ENV: staging
+      DATABASE_NAME: zenark_staging
+      MONGO_DB_NAME: zenark_staging
+      MONGODB_URI: mongodb://zenark_staging:${MONGO_STAGING_PASSWORD}@mongo:27017/?authSource=admin
+    depends_on:
+      mongo:
+        condition: service_healthy
+    restart: unless-stopped
+
+  dashboard:
+    build:
+      context: .
+      dockerfile: dashboard/Dockerfile
+    image: zenark-staging-dashboard
+    container_name: zenark-staging-dashboard
+    networks:
+      - zenark-staging
+    env_file:
+      - .env.staging.local
+    environment:
+      APP_ENV: staging
+      DATABASE_NAME: zenark_staging
+      MONGO_DB_NAME: zenark_staging
+      MONGODB_URI: mongodb://zenark_staging:${MONGO_STAGING_PASSWORD}@mongo:27017/?authSource=admin
+    depends_on:
+      mongo:
+        condition: service_healthy
+    restart: unless-stopped
+
+  gateway:
+    image: nginx:1.27-alpine
+    container_name: zenark-staging-gateway
+    networks:
+      - zenark-staging
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./deploy/staging.nginx.conf:/etc/nginx/conf.d/default.conf:ro
+    depends_on:
+      - api
+      - dashboard
     restart: unless-stopped

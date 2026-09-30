@@ -19,8 +19,10 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-if str(ROOT) not in sys.path:
-    sys.path.insert(0, str(ROOT))
+for _entry in (ROOT / "dashboard", ROOT / "backend-core", ROOT / "backend-agent"):
+    _text = str(_entry)
+    if _text not in sys.path:
+        sys.path.insert(0, _text)
 
 from pymongo import MongoClient
 
@@ -29,7 +31,7 @@ from meditation.data import get_session_by_id
 from services.apm import make_apm_edge_id, make_apm_node_id
 from services.meditation.demo_profiles import DEMO_PASSWORD, DEMO_PROFILES
 from services.meditation.engine import recommend
-from services.users import hash_password
+from backend_core.users import hash_password
 from schemas import APMNodeType, APMRelationType
 
 
