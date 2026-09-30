@@ -41,6 +41,7 @@ Exact `collection.field` values sealed before the Mongo write:
 | `user_insights` | `insight_summary` | `services/extraction.py` `_persist_extraction` | extraction persistence only | Not a student-facing field in the frozen API |
 | `graph_nodes` | `name` | `services/mongo_graph.py` `upsert_node` | graph prompt formatting (`open_text`) | Not returned as a student transcript; used in prompts |
 | `proactive_questions` | `question` | `services/proactive/store.py` `insert_opportunity` | pending/evaluate/chat dispatch (`open_text`) | Decrypted to the authenticated owner on pending/evaluate |
+| `apm_nodes` | `display_label` | `services/apm.py` `_upsert_node` | APM retrieval (`open_text`) | Never returned as a student transcript; used in prompts |
 
 Fail-closed: encrypt success stores ciphertext; encrypt failure raises `CryptoIntegrityError` and does **not** write plaintext.
 
@@ -92,6 +93,7 @@ Identifiers, clocks, scores, enums, and tenancy keys are stored in the clear on 
 | Dashboard | `school_key`, role audience, metric payloads |
 | GDS / risk | `gds_snapshots`, `user_risk_turns` scores and class labels |
 | Users | `email` (auth identifier), `crisis_flag`, consent booleans |
+| APM | `apm_nodes.canonical_label`, `aliases`, scores, `occurrence_count`, node/edge ids; `apm_episodes` ids and numeric valence/intensity |
 
 `sleep_logs` has no free-text note field in the writer.
 
@@ -202,6 +204,7 @@ session_reports.psychiatric_summary
 user_insights.insight_summary
 graph_nodes.name
 proactive_questions.question
+apm_nodes.display_label
 
 PLAINTEXT_NARRATIVE:
 journal_entries.title
@@ -239,6 +242,8 @@ student_psychological_profiles.conversations
 | Reports | `session_reports` | `events`, `proposed_tasks` | same | welcome, tasks | No | Deferred | Yes |
 | Graph | `graph_nodes` | `name` | `mongo_graph` | prompt | Yes | Yes — implemented | Indirect |
 | Proactive | `proactive_questions` | `question` | `services/proactive/store` | pending/evaluate/chat | Yes | Yes — implemented | Yes, decrypted to owner |
+| APM | `apm_nodes` | `display_label` | `services/apm` | prompt retrieval | Yes | Yes — implemented | Indirect |
+| APM | `apm_nodes` | `canonical_label`, aliases | `services/apm` | lookup/indexes | No | Indexable short labels | Indirect |
 | Graph | `graph_relationships` | `relation`, `properties` | `mongo_graph` | prompt | No (sanitized structured keys) | Intentional MVP exception | Indirect |
 | Escalation | `escalation_cases` | `reason`, status | `escalation` | care | No | Enum/status N/A | Limited |
 | Consultation | `consultation_notifications` | — | none currently | unread count | N/A | — | Count only |

@@ -141,7 +141,11 @@ async def run_background_extraction(
         ):
             apm_extraction = await _extract_apm_observations(message, reply)
             await persist_apm_extraction(
-                db, user_id, session_id, apm_extraction
+                db,
+                user_id,
+                session_id,
+                apm_extraction,
+                message=message,
             )
     except Exception:
         logger.exception(

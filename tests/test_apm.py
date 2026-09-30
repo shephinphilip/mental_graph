@@ -21,7 +21,9 @@ from services.apm import (
     effective_edge_score,
     ensure_apm_indexes,
     evaluate_jitai_candidate,
+    get_adaptive_memory_context,
     get_recovery_paths,
+    get_relevant_associations,
     make_apm_edge_id,
     make_apm_node_id,
     persist_apm_extraction,
@@ -303,3 +305,290 @@ async def test_deletion_and_disabled_jitai_boundary(db):
     deleted = await delete_adaptive_memory(db, "user_A")
     assert deleted["apm_nodes"] == 2
     assert await db["apm_edges"].count_documents({"user_id": "user_A"}) == 0
+    assert deleted.get("apm_episodes", 0) == 0
+
+
+def _presentation_extraction(*, helpful: bool = False) -> APMExtraction:
+    observations = [
+        APMObservation(
+            node_type=APMNodeType.TRIGGER,
+            label="presentation",
+            valence=-0.6,
+            intensity=0.7,
+            evidence_kind="explicit",
+            confidence_score=0.8,
+        ),
+        APMObservation(
+            node_type=APMNodeType.LATENT_STATE,
+            label="overwhelmed",
+            valence=-0.6,
+            intensity=0.7,
+            evidence_kind="explicit",
+            confidence_score=0.8,
+        ),
+        APMObservation(
+            node_type=APMNodeType.CONTEXT,
+            label="before exams",
+            evidence_kind="explicit",
+            confidence_score=0.7,
+        ),
+        APMObservation(
+            node_type=APMNodeType.INTERVENTION,
+            label="talking to a friend",
+            evidence_kind="explicit",
+            confidence_score=0.7,
+        ),
+    ]
+    transitions = [
+        APMTransition(
+            source_type=APMNodeType.TRIGGER,
+            source_label="presentation",
+            target_type=APMNodeType.LATENT_STATE,
+            target_label="overwhelmed",
+            relation_type=APMRelationType.TRIGGERS,
+            confidence_score=0.8,
+        ),
+    ]
+    if helpful:
+        observations.append(
+            APMObservation(
+                node_type=APMNodeType.OUTCOME,
+                label="user reported feeling calmer",
+                valence=0.3,
+                intensity=0.2,
+                evidence_kind="explicit",
+                confidence_score=0.8,
+            )
+        )
+        transitions.append(
+            APMTransition(
+                source_type=APMNodeType.LATENT_STATE,
+                source_label="overwhelmed",
+                target_type=APMNodeType.INTERVENTION,
+                target_label="talking to a friend",
+                relation_type=APMRelationType.RECOVERED_BY,
+                confidence_score=0.8,
+            )
+        )
+    return APMExtraction(observations=observations, transitions=transitions)
+
+
+@pytest.mark.asyncio
+async def test_episode_stores_valence_intensity_context_and_source(db):
+    message = "I always get overwhelmed before presentations."
+    written = await persist_apm_extraction(
+        db,
+        "user_A",
+        "sess_1",
+        _presentation_extraction(),
+        message=message,
+        source_message_id="msg_1",
+    )
+    assert written > 0
+    episode = await db["apm_episodes"].find_one({"user_id": "user_A"})
+    assert episode is not None
+    assert episode["valence"] == pytest.approx(-0.6)
+    assert episode["intensity"] == pytest.approx(0.7)
+    assert episode["context"] == "ACADEMIC"
+    assert episode["explicitness"] == "explicit"
+    assert episode["source_message_id"] == "msg_1"
+    assert episode["source_reference"]["kind"] == "chat_turn"
+    assert message not in str(episode)
+    trigger = await db["apm_nodes"].find_one(
+        {"user_id": "user_A", "node_type": "TRIGGER"}
+    )
+    assert trigger["display_label"].startswith("enc::")
+    assert trigger["canonical_label"] == "presentation"
+    assert trigger["source_kind"] == "explicit"
+    assert trigger["occurrence_count"] == 1
+
+
+@pytest.mark.asyncio
+async def test_recurrence_increments_only_matching_evidence(db):
+    first = _presentation_extraction()
+    await persist_apm_extraction(db, "user_A", "sess_1", first, message="presentations overwhelm me")
+    await persist_apm_extraction(db, "user_A", "sess_1", first, message="presentations overwhelm me")
+    trigger = await db["apm_nodes"].find_one(
+        {"user_id": "user_A", "canonical_label": "presentation"}
+    )
+    assert trigger["occurrence_count"] == 1
+    await persist_apm_extraction(
+        db, "user_A", "sess_2", first, message="another presentation is coming"
+    )
+    trigger = await db["apm_nodes"].find_one(
+        {"user_id": "user_A", "canonical_label": "presentation"}
+    )
+    assert trigger["occurrence_count"] == 2
+    unrelated = APMExtraction(
+        observations=[
+            APMObservation(
+                node_type=APMNodeType.TRIGGER,
+                label="family argument",
+                evidence_kind="explicit",
+                confidence_score=0.7,
+            )
+        ]
+    )
+    await persist_apm_extraction(
+        db, "user_A", "sess_3", unrelated, message="we had a family argument"
+    )
+    trigger = await db["apm_nodes"].find_one(
+        {"user_id": "user_A", "canonical_label": "presentation"}
+    )
+    assert trigger["occurrence_count"] == 2
+    family = await db["apm_nodes"].find_one(
+        {"user_id": "user_A", "canonical_label": "family argument"}
+    )
+    assert family["occurrence_count"] == 1
+
+
+@pytest.mark.asyncio
+async def test_coping_sequence_and_false_success_rejected(db):
+    await persist_apm_extraction(
+        db,
+        "user_A",
+        "sess_help",
+        _presentation_extraction(helpful=True),
+        message="talking to a friend helped and I felt calmer after the presentation",
+    )
+    edge = await db["apm_edges"].find_one(
+        {"user_id": "user_A", "relation_type": "RECOVERED_BY"}
+    )
+    assert edge is not None
+    assert edge["explicit_successes"] == 0
+    await record_intervention_feedback(
+        db,
+        "user_A",
+        edge_id=edge["edge_id"],
+        intervention_id=edge["target_node_id"],
+        execution_nonce="open-1",
+        event_type="STARTED",
+    )
+    edge = await db["apm_edges"].find_one({"edge_id": edge["edge_id"]})
+    assert edge["explicit_successes"] == 0
+    await record_intervention_feedback(
+        db,
+        "user_A",
+        edge_id=edge["edge_id"],
+        intervention_id=edge["target_node_id"],
+        execution_nonce="help-1",
+        event_type="HELPFUL",
+    )
+    edge = await db["apm_edges"].find_one({"edge_id": edge["edge_id"]})
+    assert edge["explicit_successes"] == 1
+
+
+@pytest.mark.asyncio
+async def test_later_turn_retrieves_apm_and_current_correction_wins(db):
+    await persist_apm_extraction(
+        db,
+        "user_A",
+        "sess_1",
+        _presentation_extraction(),
+        message="I always get overwhelmed before presentations",
+    )
+    later = await get_adaptive_memory_context(
+        db, "user_A", "I've got another presentation tomorrow"
+    )
+    assert "presentation" in later.lower()
+    assert "overwhelmed" in later.lower()
+    assert "enc::" not in later
+    denied = await get_adaptive_memory_context(
+        db, "user_A", "Presentations aren't stressful anymore"
+    )
+    assert "presentation" not in denied.lower()
+    from services.apm import apply_user_correction
+
+    assert await apply_user_correction(
+        db, "user_A", "Presentations aren't stressful anymore"
+    )
+    node = await db["apm_nodes"].find_one(
+        {"user_id": "user_A", "canonical_label": "presentation"}
+    )
+    assert node["status"] == "INVALIDATED"
+    after = await get_relevant_associations(
+        db, "user_A", "I've got another presentation tomorrow"
+    )
+    assert after == []
+
+
+@pytest.mark.asyncio
+async def test_consent_crisis_and_cross_user_isolation_for_associations(db):
+    extraction = _presentation_extraction()
+    await persist_apm_extraction(
+        db, "user_A", "sess_a", extraction, message="presentations overwhelm me"
+    )
+    await persist_apm_extraction(
+        db, "user_B", "sess_b", extraction, message="presentations overwhelm me"
+    )
+    a_labels = {
+        item["label"]
+        for item in await get_relevant_associations(
+            db, "user_A", "presentation tomorrow"
+        )
+    }
+    b_context = await get_adaptive_memory_context(db, "user_B", "family conflict")
+    assert any("presentation" in label.lower() for label in a_labels)
+    assert "presentation" not in b_context.lower()
+    assert await persist_apm_extraction(
+        db, "no_consent", "sess_x", extraction, message="presentations overwhelm me"
+    ) == 0
+    crisis = extraction.model_copy(update={"crisis_signal_detected": True})
+    assert await persist_apm_extraction(
+        db, "user_A", "sess_crisis", crisis, message="presentations overwhelm me"
+    ) == 0
+
+
+@pytest.mark.asyncio
+async def test_erasure_removes_episodes_and_blocks_future_retrieval(db):
+    from services.erasure import start_erasure
+
+    await persist_apm_extraction(
+        db, "user_A", "sess_1", _presentation_extraction(), message="presentations overwhelm me"
+    )
+    assert await db["apm_episodes"].count_documents({"user_id": "user_A"}) == 1
+    result = await start_erasure(db, "user_A")
+    assert result["status"] == "succeeded"
+    assert await db["apm_nodes"].count_documents({"user_id": "user_A"}) == 0
+    assert await db["apm_episodes"].count_documents({"user_id": "user_A"}) == 0
+    later = await get_adaptive_memory_context(
+        db, "user_A", "I've got another presentation tomorrow"
+    )
+    assert later == "No adaptive psychological memory available."
+
+
+@pytest.mark.asyncio
+async def test_proactive_consumes_apm_until_user_corrects(db):
+    from services.proactive.service import evaluate_proactive_question
+    from services.proactive.schemas import Decision
+
+    await persist_apm_extraction(
+        db,
+        "user_A",
+        "sess_1",
+        _presentation_extraction(),
+        message="I always get overwhelmed before presentations",
+    )
+    asked = await evaluate_proactive_question(
+        db, "user_A", opening_turn=True, dispatch=False
+    )
+    assert asked.decision == Decision.PROACTIVE_QUESTION.value
+    assert "presentation" in asked.question.lower()
+    from services.apm import apply_user_correction
+
+    await apply_user_correction(db, "user_A", "Presentations aren't stressful anymore")
+    after = await evaluate_proactive_question(
+        db,
+        "user_A",
+        opening_turn=True,
+        dispatch=False,
+        now=datetime.now(timezone.utc) + timedelta(days=4),
+    )
+    if after.decision == Decision.PROACTIVE_QUESTION.value:
+        assert "presentation" not in after.question.lower()
+    else:
+        assert after.reason in {
+            "empty_graph",
+            "no_justified_trigger",
+            "low_receptivity",
+        }

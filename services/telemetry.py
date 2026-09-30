@@ -29,6 +29,13 @@ ALLOWED_METRICS = frozenset(
         "proactive_status",
         "proactive_validation",
         "proactive_retry",
+        "apm_extraction",
+        "apm_retrieval",
+        "apm_pattern_update",
+        "apm_outcome_update",
+        "apm_suppression",
+        "apm_correction",
+        "apm_erasure",
     }
 )
 

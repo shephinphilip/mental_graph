@@ -263,6 +263,8 @@ class APMObservation(BaseModel):
     aliases: List[str] = Field(default_factory=list, max_length=8)
     valence: Optional[float] = Field(default=None, ge=-1.0, le=1.0)
     arousal: Optional[float] = Field(default=None, ge=0.0, le=1.0)
+    intensity: Optional[float] = Field(default=None, ge=0.0, le=1.0)
+    evidence_kind: Optional[str] = Field(default=None, max_length=16)
     confidence_score: float = Field(default=0.5, ge=0.0, le=1.0)
 
 

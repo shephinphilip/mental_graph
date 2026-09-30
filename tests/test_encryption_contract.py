@@ -23,6 +23,7 @@ SEALED = (
     "user_insights.insight_summary",
     "graph_nodes.name",
     "proactive_questions.question",
+    "apm_nodes.display_label",
 )
 
 PLAINTEXT_NARRATIVE = (
@@ -194,6 +195,41 @@ async def test_every_sealed_writer_stores_ciphertext():
     saved = stored_q["doc"]
     assert saved["question"].startswith("enc::")
     assert SECRET_BODY not in saved["question"]
+
+    from schemas import APMExtraction, APMNodeType, APMObservation
+    from services.apm import ensure_apm_indexes, persist_apm_extraction
+
+    apm_db = AsyncMongoMockClient()["apm_enc"]
+    await ensure_apm_indexes(apm_db)
+    await apm_db["users"].insert_one(
+        {
+            "user_id": "user_a",
+            "isActive": True,
+            "personalization_consent": True,
+        }
+    )
+    await persist_apm_extraction(
+        apm_db,
+        "user_a",
+        "sess_enc",
+        APMExtraction(
+            observations=[
+                APMObservation(
+                    node_type=APMNodeType.TRIGGER,
+                    label=SECRET_BODY[:80] if len(SECRET_BODY) > 80 else SECRET_BODY,
+                    valence=-0.4,
+                    intensity=0.6,
+                    evidence_kind="explicit",
+                    confidence_score=0.8,
+                )
+            ]
+        ),
+        message="presentations feel heavy",
+    )
+    apm_node = await apm_db["apm_nodes"].find_one({"user_id": "user_a"})
+    assert apm_node["display_label"].startswith("enc::")
+    assert SECRET_BODY[:20] not in apm_node["display_label"]
+    assert apm_node["canonical_label"]
 
     from services.session_report import generate_session_report
     from tests.test_tasks import _db as tasks_db

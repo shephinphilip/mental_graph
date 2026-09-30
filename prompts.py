@@ -621,6 +621,8 @@ Schema:
       "aliases": ["phrasing used by the person"],
       "valence": -1.0,
       "arousal": 0.0,
+      "intensity": 0.0,
+      "evidence_kind": "explicit",
       "confidence_score": 0.0
     }}
   ],
@@ -638,6 +640,8 @@ Schema:
 }}
 
 Rules:
+- intensity is emotional intensity 0 to 1, not clinical risk and not GDS.
+- evidence_kind is "explicit" when the person said it, otherwise "inferred".
 - Do not infer relief merely because the assistant suggested an action.
 - RECOVERED_BY requires the user to explicitly report that an intervention
   helped; otherwise extract the intervention node without that relation.

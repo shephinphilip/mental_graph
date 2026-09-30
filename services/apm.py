@@ -18,12 +18,14 @@ from motor.motor_asyncio import AsyncIOMotorDatabase
 from pymongo.errors import DuplicateKeyError
 
 from config.config import get_settings, logger
+from core.logging import hash_user_id
 from schemas import (
     APMExtraction,
     APMNodeType,
     APMRelationType,
     APMTransition,
 )
+from services.telemetry import register_metric
 
 EMPTY_APM_CONTEXT = "No adaptive psychological memory available."
 _CRISIS_TERMS = (
@@ -39,6 +41,35 @@ _CRISIS_TERMS = (
     "overdose",
 )
 _FEEDBACK_EVENTS = frozenset({"STARTED", "COMPLETED", "HELPFUL", "NOT_HELPFUL"})
+_STATUS_ACTIVE = "ACTIVE"
+_STATUS_INVALIDATED = "INVALIDATED"
+_CORRECTION_MARKERS = (
+    "that's not what happened",
+    "that is not what happened",
+    "that's not true",
+    "that is not true",
+    "not stressful anymore",
+    "aren't stressful anymore",
+    "are not stressful anymore",
+    "isn't stressful anymore",
+    "is not stressful",
+    "aren't stressful",
+    "no longer stressful",
+)
+_CONTEXT_HINTS = (
+    ("ACADEMIC", ("exam", "test", "school", "marks", "assignment", "presentation", "grade", "study")),
+    ("FAMILY", ("parent", "mom", "dad", "family", "home")),
+    ("FRIENDSHIP", ("friend", "friends", "classmate")),
+    ("BULLYING", ("bully", "bullying", "teased")),
+    ("SLEEP", ("sleep", "insomnia", "tired", "rest")),
+    ("IDENTITY", ("identity", "who i am")),
+    ("SOCIAL_MEDIA", ("instagram", "social media", "likes")),
+    ("PERFORMANCE", ("performance", "stage", "audience")),
+    ("RELATIONSHIP", ("relationship", "partner", "breakup")),
+    ("SELF_IMAGE", ("looks", "body", "self-image")),
+    ("WORK", ("internship", "job", "work")),
+    ("HEALTH", ("health", "sick", "illness")),
+)
 
 
 def temporal_bucket(at: Optional[datetime] = None) -> str:
@@ -58,6 +89,79 @@ def temporal_bucket(at: Optional[datetime] = None) -> str:
 def contains_crisis_signal(text: str) -> bool:
     lowered = (text or "").casefold()
     return any(term in lowered for term in _CRISIS_TERMS)
+
+
+def _message_tokens(text: str) -> set[str]:
+    return {
+        token
+        for token in re.findall(r"[a-zA-Z]{3,}", (text or "").casefold())
+        if token
+    }
+
+
+def labels_overlap(message: str, label: str) -> bool:
+    left = _message_tokens(message)
+    right = _message_tokens(label)
+    if left & right:
+        return True
+    for first in left:
+        for second in right:
+            if min(len(first), len(second)) >= 5 and (
+                first.startswith(second) or second.startswith(first)
+            ):
+                return True
+    return False
+
+
+def message_contradicts_topic(message: str, label: str) -> bool:
+    """Current-turn denial of a remembered topic. Not a diagnosis check."""
+    if not labels_overlap(message, label):
+        return False
+    lowered = (message or "").casefold()
+    return any(marker in lowered for marker in _CORRECTION_MARKERS)
+
+
+def normalize_context_bucket(label: str) -> str:
+    lowered = (label or "").casefold()
+    for bucket, hints in _CONTEXT_HINTS:
+        if any(hint in lowered for hint in hints):
+            return bucket
+    return "OTHER"
+
+
+def _blocked_psychological_label(label: str) -> bool:
+    if contains_crisis_signal(label):
+        return True
+    lowered = (label or "").casefold()
+    return any(
+        term in lowered
+        for term in (
+            "generalized anxiety",
+            "major depression",
+            "disorder",
+            "self-harm method",
+            "how to cut",
+            "overdose",
+        )
+    )
+
+
+def make_observation_nonce(user_id: str, session_id: str, message: str) -> str:
+    material = f"{user_id}|{session_id}|{(message or '').strip()}"
+    return sha256(material.encode("utf-8")).hexdigest()[:24]
+
+
+def _open_label(value: Any) -> str:
+    from services.security import open_text
+
+    return str(open_text(value or "") or "").strip()
+
+
+def recurrence_confidence(occurrence_count: int) -> float:
+    count = max(0, int(occurrence_count or 0))
+    if count <= 1:
+        return 0.0
+    return min(1.0, (count - 1) / 3.0)
 
 
 def _owner_namespace(user_id: str) -> str:
@@ -155,6 +259,14 @@ async def ensure_apm_indexes(db: AsyncIOMotorDatabase) -> None:
     await db["apm_events"].create_index(
         [("user_id", 1), ("recorded_at", -1)], name="idx_apm_event_timeline"
     )
+    await db["apm_episodes"].create_index(
+        [("user_id", 1), ("episode_id", 1)], unique=True, name="uniq_apm_episode"
+    )
+    await db["apm_episodes"].create_index(
+        [("user_id", 1), ("execution_nonce", 1)],
+        unique=True,
+        name="uniq_apm_episode_nonce",
+    )
 
 
 async def personalization_enabled(
@@ -180,17 +292,38 @@ async def _upsert_node(
     confidence_score: float,
     valence: Optional[float] = None,
     arousal: Optional[float] = None,
+    intensity: Optional[float] = None,
     bucket: str,
     bootstrapped: bool = False,
+    source_kind: str = "inferred",
+    message: str = "",
 ) -> str:
+    if _blocked_psychological_label(label):
+        return ""
     node_id = make_apm_node_id(user_id, node_type, label)
     now = datetime.now(timezone.utc)
+    existing = await db["apm_nodes"].find_one(
+        {"user_id": user_id, "node_id": node_id},
+        {"status": 1},
+    )
+    if (
+        existing
+        and existing.get("status") == _STATUS_INVALIDATED
+        and source_kind != "explicit"
+    ):
+        return node_id
+    from services.security import seal_text
+
     clean_aliases = {
         _canonical_label(alias)
         for alias in aliases
         if alias and alias.strip()
     }
     clean_aliases.add(_canonical_label(label))
+    intensity_value = intensity
+    if intensity_value is None and arousal is not None:
+        intensity_value = arousal
+    status = _STATUS_ACTIVE
     await db["apm_nodes"].update_one(
         {"user_id": user_id, "node_id": node_id},
         {
@@ -199,10 +332,13 @@ async def _upsert_node(
                 "node_id": node_id,
                 "node_type": node_type.value,
                 "canonical_label": _canonical_label(label),
-                "display_label": label.strip(),
+                "display_label": seal_text(label.strip()),
                 "last_seen_at": now,
                 "attributes.valence": valence,
                 "attributes.arousal": arousal,
+                "attributes.intensity": intensity_value,
+                "source_kind": source_kind,
+                "status": status,
                 "bootstrapped": bootstrapped,
             },
             "$max": {"confidence_score": confidence_score},
@@ -215,6 +351,7 @@ async def _upsert_node(
         },
         upsert=True,
     )
+    register_metric("apm_pattern_update")
     return node_id
 
 
@@ -271,16 +408,44 @@ async def persist_apm_extraction(
     user_id: str,
     session_id: str,
     extraction: APMExtraction,
+    *,
+    message: str = "",
+    source_message_id: str = "",
 ) -> int:
     """Persist one minimized temporal observation when consent permits."""
     if extraction.crisis_signal_detected:
+        register_metric("apm_suppression")
+        return 0
+    if contains_crisis_signal(message):
+        register_metric("apm_suppression")
         return 0
     if not await personalization_enabled(db, user_id):
+        register_metric("apm_suppression")
+        return 0
+
+    corrected = await apply_user_correction(db, user_id, message)
+    if corrected:
+        register_metric("apm_correction")
+
+    nonce = make_observation_nonce(user_id, session_id, message)
+    existing_event = await db["apm_events"].find_one(
+        {
+            "user_id": user_id,
+            "execution_nonce": nonce,
+            "event_type": "OBSERVATION",
+        }
+    )
+    if existing_event:
         return 0
 
     bucket = temporal_bucket()
     node_ids: Dict[tuple[str, str], str] = {}
     for observation in extraction.observations:
+        source_kind = (observation.evidence_kind or "").casefold()
+        if source_kind not in {"explicit", "inferred"}:
+            source_kind = (
+                "explicit" if labels_overlap(message, observation.label) else "inferred"
+            )
         node_id = await _upsert_node(
             db,
             user_id,
@@ -290,8 +455,13 @@ async def persist_apm_extraction(
             confidence_score=observation.confidence_score,
             valence=observation.valence,
             arousal=observation.arousal,
+            intensity=observation.intensity,
             bucket=bucket,
+            source_kind=source_kind,
+            message=message,
         )
+        if not node_id:
+            continue
         node_ids[(observation.node_type.value, _canonical_label(observation.label))] = (
             node_id
         )
@@ -311,23 +481,314 @@ async def persist_apm_extraction(
                     label,
                     confidence_score=transition.confidence_score,
                     bucket=bucket,
+                    source_kind="inferred",
+                    message=message,
                 )
+            if not node_ids.get(key):
+                node_ids.pop(key, None)
+        if not node_ids.get(
+            (transition.source_type.value, _canonical_label(transition.source_label))
+        ) or not node_ids.get(
+            (transition.target_type.value, _canonical_label(transition.target_label))
+        ):
+            continue
         edge_ids.append(
             await _upsert_transition(db, user_id, transition, bucket=bucket)
         )
 
-    await db["apm_events"].insert_one(
-        {
-            "user_id": user_id,
-            "session_id": session_id,
-            "event_type": "OBSERVATION",
-            "node_ids": list(node_ids.values()),
-            "edge_ids": edge_ids,
-            "temporal_bucket": bucket,
-            "recorded_at": datetime.now(timezone.utc),
-        }
+    episode_id = await _persist_episode(
+        db,
+        user_id=user_id,
+        session_id=session_id,
+        nonce=nonce,
+        extraction=extraction,
+        node_ids=node_ids,
+        message=message,
+        source_message_id=source_message_id,
     )
-    return len(node_ids) + len(edge_ids)
+
+    try:
+        await db["apm_events"].insert_one(
+            {
+                "user_id": user_id,
+                "session_id": session_id,
+                "event_type": "OBSERVATION",
+                "execution_nonce": nonce,
+                "episode_id": episode_id,
+                "node_ids": [item for item in node_ids.values() if item],
+                "edge_ids": edge_ids,
+                "source_message_id": source_message_id,
+                "temporal_bucket": bucket,
+                "recorded_at": datetime.now(timezone.utc),
+            }
+        )
+    except DuplicateKeyError:
+        return 0
+    register_metric("apm_extraction")
+    logger.info(
+        "apm_extraction user=%s nodes=%s edges=%s episode=%s",
+        hash_user_id(user_id),
+        len(node_ids),
+        len(edge_ids),
+        bool(episode_id),
+    )
+    return len([item for item in node_ids.values() if item]) + len(edge_ids)
+
+
+async def _persist_episode(
+    db: AsyncIOMotorDatabase,
+    *,
+    user_id: str,
+    session_id: str,
+    nonce: str,
+    extraction: APMExtraction,
+    node_ids: Dict[tuple[str, str], str],
+    message: str,
+    source_message_id: str,
+) -> str:
+    def _first(node_type: APMNodeType) -> str:
+        for observation in extraction.observations:
+            if observation.node_type is node_type:
+                return node_ids.get(
+                    (node_type.value, _canonical_label(observation.label)), ""
+                )
+        return ""
+
+    context_label = ""
+    valence = None
+    intensity = None
+    confidence = 0.0
+    explicitness = "inferred"
+    for observation in extraction.observations:
+        if observation.node_type is APMNodeType.CONTEXT and not context_label:
+            context_label = normalize_context_bucket(observation.label)
+        if observation.valence is not None and valence is None:
+            valence = observation.valence
+        intensity_value = observation.intensity
+        if intensity_value is None:
+            intensity_value = observation.arousal
+        if intensity_value is not None and intensity is None:
+            intensity = intensity_value
+        confidence = max(confidence, float(observation.confidence_score or 0))
+        kind = (observation.evidence_kind or "").casefold()
+        if kind == "explicit" or labels_overlap(message, observation.label):
+            explicitness = "explicit"
+    if not context_label:
+        context_label = normalize_context_bucket(message)
+    episode_id = f"apmep_{_owner_namespace(user_id)}__{nonce}"
+    source_hash = sha256((message or "").encode("utf-8")).hexdigest()[:16]
+    try:
+        await db["apm_episodes"].insert_one(
+            {
+                "episode_id": episode_id,
+                "user_id": user_id,
+                "execution_nonce": nonce,
+                "timestamp": datetime.now(timezone.utc),
+                "context": context_label,
+                "trigger_node_id": _first(APMNodeType.TRIGGER),
+                "latent_state_node_id": _first(APMNodeType.LATENT_STATE),
+                "intervention_node_id": _first(APMNodeType.INTERVENTION),
+                "outcome_node_id": _first(APMNodeType.OUTCOME),
+                "valence": valence,
+                "intensity": intensity,
+                "explicitness": explicitness,
+                "confidence": round(confidence, 3),
+                "source_session_id": session_id,
+                "source_message_id": source_message_id,
+                "source_reference": {
+                    "kind": "chat_turn",
+                    "session_id": session_id,
+                    "content_hash": source_hash,
+                },
+                "status": _STATUS_ACTIVE,
+            }
+        )
+    except DuplicateKeyError:
+        return episode_id
+    return episode_id
+
+
+async def apply_user_correction(
+    db: AsyncIOMotorDatabase, user_id: str, message: str
+) -> int:
+    """Invalidate overlapping active nodes when the user denies the memory."""
+    if not user_id or not any(marker in (message or "").casefold() for marker in _CORRECTION_MARKERS):
+        return 0
+    cursor = db["apm_nodes"].find(
+        {"user_id": user_id, "status": {"$ne": _STATUS_INVALIDATED}}
+    )
+    nodes = await cursor.to_list(length=40)
+    updated = 0
+    now = datetime.now(timezone.utc)
+    for node in nodes:
+        if node.get("user_id") != user_id:
+            continue
+        label = _open_label(node.get("display_label")) or str(
+            node.get("canonical_label") or ""
+        )
+        if not message_contradicts_topic(message, label) and not labels_overlap(
+            message, label
+        ):
+            continue
+        if not labels_overlap(message, label):
+            continue
+        await db["apm_nodes"].update_one(
+            {"user_id": user_id, "node_id": node["node_id"]},
+            {
+                "$set": {
+                    "status": _STATUS_INVALIDATED,
+                    "updated_at": now,
+                    "confidence_score": min(
+                        float(node.get("confidence_score") or 0) * 0.3, 0.2
+                    ),
+                }
+            },
+        )
+        await db["apm_episodes"].update_many(
+            {
+                "user_id": user_id,
+                "$or": [
+                    {"trigger_node_id": node["node_id"]},
+                    {"latent_state_node_id": node["node_id"]},
+                ],
+            },
+            {"$set": {"status": _STATUS_INVALIDATED}},
+        )
+        updated += 1
+    if updated:
+        await db["apm_events"].insert_one(
+            {
+                "user_id": user_id,
+                "event_type": "CORRECTION",
+                "updated_count": updated,
+                "recorded_at": now,
+            }
+        )
+    return updated
+
+
+async def get_relevant_associations(
+    db: AsyncIOMotorDatabase,
+    user_id: str,
+    message: str,
+    *,
+    limit: int = 4,
+) -> List[Dict[str, Any]]:
+    """Bounded trigger/state associations for later-turn response shaping."""
+    if contains_crisis_signal(message) or not await personalization_enabled(db, user_id):
+        return []
+    words = _message_tokens(message)
+    if not words:
+        return []
+    query: Dict[str, Any] = {
+        "user_id": user_id,
+        "status": {"$ne": _STATUS_INVALIDATED},
+        "node_type": {
+            "$in": [
+                APMNodeType.TRIGGER.value,
+                APMNodeType.LATENT_STATE.value,
+                APMNodeType.CONTEXT.value,
+            ]
+        },
+    }
+    if words:
+        pattern = "|".join(re.escape(word) for word in sorted(words))
+        query["$or"] = [
+            {"canonical_label": {"$regex": pattern, "$options": "i"}},
+            {"aliases": {"$regex": pattern, "$options": "i"}},
+        ]
+    cursor = db["apm_nodes"].find(query).sort("last_seen_at", -1).limit(8)
+    nodes = await _cursor_list(cursor, 8)
+    trigger_ids = [
+        node["node_id"]
+        for node in nodes
+        if node.get("node_type") == APMNodeType.TRIGGER.value
+    ]
+    edges = []
+    if trigger_ids:
+        edge_cursor = (
+            db["apm_edges"]
+            .find(
+                {
+                    "user_id": user_id,
+                    "source_node_id": {"$in": trigger_ids},
+                    "relation_type": APMRelationType.TRIGGERS.value,
+                }
+            )
+            .limit(12)
+        )
+        edges = await _cursor_list(edge_cursor, 12)
+    target_ids = [edge["target_node_id"] for edge in edges]
+    targets: Dict[str, Dict[str, Any]] = {}
+    if target_ids:
+        target_cursor = db["apm_nodes"].find(
+            {
+                "user_id": user_id,
+                "node_id": {"$in": target_ids},
+                "status": {"$ne": _STATUS_INVALIDATED},
+            }
+        )
+        targets = {
+            node["node_id"]: node for node in await _cursor_list(target_cursor, len(target_ids))
+        }
+    sources = {node["node_id"]: node for node in nodes}
+    associations = []
+    used = set()
+    for edge in edges:
+        source = sources.get(edge["source_node_id"])
+        target = targets.get(edge["target_node_id"])
+        if not source or not target:
+            continue
+        source_label = _open_label(source.get("display_label")) or str(
+            source.get("canonical_label") or ""
+        )
+        target_label = _open_label(target.get("display_label")) or str(
+            target.get("canonical_label") or ""
+        )
+        if message_contradicts_topic(message, source_label):
+            continue
+        associations.append(
+            {
+                "node_id": source["node_id"],
+                "node_type": "TRIGGER",
+                "label": f"{source_label} associated with {target_label}",
+                "valence": (source.get("attributes") or {}).get("valence"),
+                "intensity": (source.get("attributes") or {}).get("intensity"),
+                "occurrence_count": int(source.get("occurrence_count") or 1),
+                "evidence_kind": source.get("source_kind") or "inferred",
+                "recurrence_confidence": recurrence_confidence(
+                    int(source.get("occurrence_count") or 1)
+                ),
+            }
+        )
+        used.add(source["node_id"])
+        if len(associations) >= limit:
+            return associations
+    for node in nodes:
+        if node.get("user_id") != user_id or node["node_id"] in used:
+            continue
+        label = _open_label(node.get("display_label")) or str(
+            node.get("canonical_label") or ""
+        )
+        if message_contradicts_topic(message, label):
+            continue
+        associations.append(
+            {
+                "node_id": node["node_id"],
+                "node_type": node.get("node_type"),
+                "label": label,
+                "valence": (node.get("attributes") or {}).get("valence"),
+                "intensity": (node.get("attributes") or {}).get("intensity"),
+                "occurrence_count": int(node.get("occurrence_count") or 1),
+                "evidence_kind": node.get("source_kind") or "inferred",
+                "recurrence_confidence": recurrence_confidence(
+                    int(node.get("occurrence_count") or 1)
+                ),
+            }
+        )
+        if len(associations) >= limit:
+            break
+    return associations
 
 
 def effective_edge_score(edge: Dict[str, Any], at: Optional[datetime] = None) -> float:
@@ -477,6 +938,8 @@ async def record_intervention_feedback(
             {"$unset": {"applying": "", "apply_started_at": ""}},
         )
         raise
+    if event_type in {"HELPFUL", "NOT_HELPFUL"}:
+        register_metric("apm_outcome_update")
     return True
 
 
@@ -514,6 +977,7 @@ async def get_recovery_paths(
             .find(
                 {
                     "user_id": user_id,
+                    "status": {"$ne": _STATUS_INVALIDATED},
                     "node_type": {
                         "$in": [
                             APMNodeType.TRIGGER.value,
@@ -539,6 +1003,7 @@ async def get_recovery_paths(
             .find(
                 {
                     "user_id": user_id,
+                    "status": {"$ne": _STATUS_INVALIDATED},
                     "node_type": APMNodeType.LATENT_STATE.value,
                     "temporal_buckets": bucket,
                 }
@@ -553,6 +1018,7 @@ async def get_recovery_paths(
             .find(
                 {
                     "user_id": user_id,
+                    "status": {"$ne": _STATUS_INVALIDATED},
                     "node_type": APMNodeType.LATENT_STATE.value,
                 }
             )
@@ -600,6 +1066,16 @@ async def get_recovery_paths(
         target = targets.get(edge["target_node_id"])
         if not source or not target:
             continue
+        source_label = _open_label(source.get("display_label")) or str(
+            source.get("canonical_label") or ""
+        )
+        intervention_label = _open_label(target.get("display_label")) or str(
+            target.get("canonical_label") or ""
+        )
+        if message_contradicts_topic(message, source_label) or message_contradicts_topic(
+            message, intervention_label
+        ):
+            continue
         score = effective_edge_score(edge, now)
         eligible = bool(
             direct
@@ -613,11 +1089,9 @@ async def get_recovery_paths(
             {
                 "edge_id": edge["edge_id"],
                 "source_node_id": source["node_id"],
-                "source_label": source.get("display_label")
-                or source.get("canonical_label"),
+                "source_label": source_label,
                 "intervention_id": target["node_id"],
-                "intervention_label": target.get("display_label")
-                or target.get("canonical_label"),
+                "intervention_label": intervention_label,
                 "effective_score": round(score, 3),
                 "confidence_score": min(
                     source.get("confidence_score", 0),
@@ -632,12 +1106,24 @@ async def get_recovery_paths(
     return paths[:limit]
 
 
-def format_adaptive_memory_context(paths: List[Dict[str, Any]]) -> str:
-    if not paths:
+def format_adaptive_memory_context(
+    paths: List[Dict[str, Any]],
+    associations: Optional[List[Dict[str, Any]]] = None,
+) -> str:
+    associations = associations or []
+    if not paths and not associations:
         return EMPTY_APM_CONTEXT
     lines = [
-        "Tentative user-specific recovery evidence. Never recite scores to the user."
+        "Tentative user-specific psychological memory. Never recite scores, "
+        "ids, or diagnoses to the user. Associated-with, not caused-by. "
+        "Current conversation can override stale memory."
     ]
+    for item in associations:
+        lines.append(
+            f"- Association: {item.get('label')} ({item.get('node_type')}, "
+            f"evidence={item.get('evidence_kind')}, "
+            f"recurrence={item.get('occurrence_count')})"
+        )
     for path in paths:
         mode = "eligible_for_one_card" if path["recommendation_eligible"] else "background_only"
         lines.append(
@@ -653,8 +1139,10 @@ async def get_adaptive_memory_context(
     db: AsyncIOMotorDatabase, user_id: str, message: str
 ) -> str:
     try:
+        register_metric("apm_retrieval")
+        associations = await get_relevant_associations(db, user_id, message)
         paths = await get_recovery_paths(db, user_id, message)
-        return format_adaptive_memory_context(paths)
+        return format_adaptive_memory_context(paths, associations)
     except Exception:
         # APM is additive and must never block a conversation.
         logger.exception("APM context failed user=%s", user_id)
@@ -665,8 +1153,9 @@ async def delete_adaptive_memory(
     db: AsyncIOMotorDatabase, user_id: str
 ) -> Dict[str, int]:
     """Delete all APM material for one authenticated user."""
+    register_metric("apm_erasure")
     deleted: Dict[str, int] = {}
-    for collection in ("apm_nodes", "apm_edges", "apm_events"):
+    for collection in ("apm_nodes", "apm_edges", "apm_events", "apm_episodes"):
         result = await db[collection].delete_many({"user_id": user_id})
         deleted[collection] = result.deleted_count
     return deleted

@@ -13,6 +13,7 @@ from schemas import APMNodeType
 from services.apm import (
     contains_crisis_signal,
     get_recovery_paths,
+    message_contradicts_topic,
 )
 from services.proactive.receptivity import appears_minimizing
 from services.proactive.schemas import DivergenceResult, GraphSnippet
@@ -237,10 +238,15 @@ async def retrieve_bounded_context(
         for node in nodes:
             if node.get("user_id") != user_id:
                 continue
-            label = _safe_label(
-                str(node.get("display_label") or node.get("canonical_label") or "")
+            if node.get("status") == "INVALIDATED":
+                continue
+            raw_label = open_text(node.get("display_label") or "") or str(
+                node.get("canonical_label") or ""
             )
+            label = _safe_label(str(raw_label))
             if not label:
+                continue
+            if message_contradicts_topic(message, label):
                 continue
             score = _relevance(node, moment)
             if score < min_conf:
