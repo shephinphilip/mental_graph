@@ -10,8 +10,16 @@ from mongomock_motor import AsyncMongoMockClient
 from services.erasure import _OWNED
 from backend_core.security import decrypt_payload, encrypt_payload, open_text, seal_text
 
-ROOT = Path(__file__).resolve().parents[2]
-MATRIX = (ROOT / "docs" / "ENCRYPTION_DATA_MATRIX.md").read_text(encoding="utf-8")
+def _matrix_text() -> str:
+    here = Path(__file__).resolve()
+    outer = here.parents[2]
+    monolith = outer / "docs" / "ENCRYPTION_DATA_MATRIX.md"
+    if (outer / "docker-compose.staging.yml").is_file() and monolith.is_file():
+        return monolith.read_text(encoding="utf-8")
+    return (here.parents[1] / "docs" / "ENCRYPTION_DATA_MATRIX.md").read_text(encoding="utf-8")
+
+
+MATRIX = _matrix_text()
 
 SEALED = (
     "messages.content",

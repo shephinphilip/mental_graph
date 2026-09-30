@@ -2,6 +2,13 @@
 
 The git root is `C:\company\chat\mental_health`. The three applications are directories in that repository. They are not three copies of the old monolith.
 
+backend-agent and backend-core are also published as their own Git repositories. This repository remains the combined checkpoint. The dashboard stays here until a separate destination is provided.
+
+- https://github.com/Zenark-2025/backend-agent
+- https://github.com/Zenark-2025/backend-core
+
+Those repositories were cut with `git subtree split`. Their history starts at this checkpoint, because `backend-agent/` and `backend-core/` did not exist as paths before the move. Older history of the same files remains in this repository.
+
 ## Applications
 
 ### backend-agent
@@ -14,7 +21,7 @@ Entrypoint: `backend-agent/app.py` (`create_app` in `backend-agent/api/applicati
 
 Port: 8000.
 
-Dependencies: `backend-core` on `PYTHONPATH`. MongoDB, Bedrock, Sarvam, encryption, and JWT settings.
+Dependencies: the `zenark-backend-core` package. Inside this repository, `backend-agent/run.py` adds the sibling `backend-core` directory when that directory contains `pyproject.toml`. The published backend-agent repository installs a pinned commit of https://github.com/Zenark-2025/backend-core instead. MongoDB, Bedrock, Sarvam, encryption, and JWT settings still come from the environment.
 
 ```powershell
 cd C:\company\chat\mental_health\backend-agent
@@ -131,13 +138,13 @@ One implementation, in backend-core:
 
 ## Environment Configuration
 
-`.env`, `.env.staging.local`, and other secret files stay at the repository root and stay gitignored. Settings still load `.env` from that root.
+`.env`, `.env.staging.local`, and other secret files stay at the repository root and stay gitignored. In this repository, settings load `.env` from that root. A standalone backend-core checkout loads `.env` from its own root. The choice is the presence of `docker-compose.staging.yml` next to `backend-agent/`, which only this combined repository has.
 
 The settings object is still one schema. Splitting it would change defaults and the staging secret guard. Each process therefore parses the full environment. Unused provider keys are not required for a process to boot in development. Staging still refuses the placeholder encryption key, the placeholder auth secret, and the shared default database name.
 
 ## Docker
 
-Build context is the repository root so images can see `backend-core` without copying secrets.
+Inside this repository the build context is the repository root so images can see `backend-core` without copying secrets. The published repositories have their own Dockerfiles that build from those repository roots. Those images have not been built here. The Docker engine was not running.
 
 ```powershell
 docker build -f backend-agent/Dockerfile -t zenark-agent .

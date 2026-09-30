@@ -4,6 +4,8 @@ Historical routes are unchanged. backend-agent serves the mental-health and Exam
 
 The public staging listener is the gateway on port 8000. It forwards `/api/v1/dashboard` to the dashboard process and every other path to backend-agent.
 
+The published backend-agent repository serves the backend-agent rows. The published backend-core repository does not add product routes. Dashboard rows remain in this repository.
+
 | Method | Route | Application | Auth | Notes |
 |---|---|---|---|---|
 | POST | /api/exam-buddy/ask | backend-agent | Bearer |  |

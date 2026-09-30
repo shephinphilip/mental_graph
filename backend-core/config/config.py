@@ -33,8 +33,20 @@ from dotenv import load_dotenv
 from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-# Repo root: backend-core/config/config.py → config → backend-core → repository root.
-PROJECT_ROOT = Path(__file__).resolve().parents[2]
+# Monolith: backend-core/config/config.py lives under the repository that also
+# contains docker-compose.staging.yml. A standalone clone has config/config.py
+# at the repository root, so the env file is one level up from this file.
+_config_file = Path(__file__).resolve()
+_nested = _config_file.parents[1]
+_outer = _config_file.parents[2]
+if (
+    _nested.name == "backend-core"
+    and (_outer / "docker-compose.staging.yml").is_file()
+    and (_outer / "backend-agent").is_dir()
+):
+    PROJECT_ROOT = _outer
+else:
+    PROJECT_ROOT = _nested
 ENV_FILE = PROJECT_ROOT / ".env"
 
 # Load the existing .env without overwriting variables already in the process.

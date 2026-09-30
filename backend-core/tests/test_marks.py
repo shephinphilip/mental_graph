@@ -1,13 +1,12 @@
 """Tests for read-only marks context and academic turn classification."""
 
 from backend_core.marks import build_marks_context, classification_hint
-from prompts import format_system_prompt, WELCOME_USER_CUE
 
 
 def test_greeting_skips_marks_class():
     assert classification_hint("hi") == "SAFE"
     assert classification_hint("Hello!") == "SAFE"
-    assert classification_hint(WELCOME_USER_CUE) == "SAFE"
+    assert classification_hint("[Session open] Start this conversation as Zenark.") == "SAFE"
 
 
 def test_exam_language_is_academic():
@@ -26,9 +25,3 @@ def test_build_marks_context_trend_and_empty():
     )
     assert "Declining" in block
     assert "Physics" in block
-
-
-def test_prompt_includes_last_session_placeholder():
-    text = format_system_prompt(last_session_context="Previous session talked about sleep.")
-    assert "Previous session talked about sleep." in text
-    assert "[Session open]" in WELCOME_USER_CUE

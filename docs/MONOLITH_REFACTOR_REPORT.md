@@ -72,11 +72,18 @@ Baseline: 458 passed.
 
 After the move: **462 passed**, 0 failed, 0 skipped. The four added tests check import boundaries and that `/chat/send` and `/api/v1/dashboard/overview` have different owners.
 
+After the standalone packaging follow-up: **463 passed**, 0 failed, 0 skipped. The extra test keeps the welcome-prompt assertion in backend-agent so backend-core tests do not import `prompts`.
+
 ## Git
 
-Branch `production-readiness/refactor`. HEAD was `b323039` at the start and was not moved. No commit was created. No force push. No history rewrite.
+Branch `production-readiness/refactor`. The checkpoint commit is `3f9670502b5cbcc3aab6324ddac4711b1355a53d`, parent `b323039fb7e3b905f317a47e44dab75b074af674`, message `refactor: split zenark applications into agent core and dashboard`. History was not rewritten. Nothing was force-pushed.
 
-`git diff --stat HEAD` at the end of the move: 449 files changed, 247 insertions, 254 deletions, dominated by renames.
+Published tips:
+
+- backend-core `4e2798aa4c88f43fefef0288abd1af0d57311ff7` on https://github.com/Zenark-2025/backend-core `main`
+- backend-agent `a3e9e6540a81fdb4867b91042acd25bdea22acfe` on https://github.com/Zenark-2025/backend-agent `main`
+
+backend-agent pins `zenark-backend-core` at `4e2798aa4c88f43fefef0288abd1af0d57311ff7`. The dashboard was not published.
 
 ## Compatibility
 
@@ -97,6 +104,8 @@ Branch `production-readiness/refactor`. HEAD was `b323039` at the start and was 
 
 Docker builds and a live staging health check did not run because the Docker daemon was stopped. Route comparison and pytest did run.
 
+The published repositories do not contain the pre-move commit history. `git subtree split` kept the checkpoint tree and the commits made on those branches afterward. `git filter-repo` was not available. File history before the directory move is still in this repository.
+
 ## Verification Commands
 
 ```powershell
@@ -107,7 +116,11 @@ python -m pytest -q
 ```
 
 Baseline pytest: `458 passed`.
-Final pytest: `462 passed, 2 warnings in 8.02s`.
+Final pytest in this repository: `463 passed, 2 warnings in 8.72s`.
+
+Clean clone of backend-core at `4e2798aa`: `import core_app` printed `Zenark Core`. `python -m pytest -q` reported **26 passed**.
+
+Clean clone of backend-agent at `a3e9e654`, after `pip install -r requirements.txt` resolved the pinned backend-core commit: `import app` constructed `Zenark API`. `python -m pytest -q` reported **423 passed, 3 skipped, 0 failed**. The skips are the architecture checks that look for `backend-core` and `dashboard` source trees, which are not inside that repository.
 
 Route comparison: before 154, missing 0, agent dashboard routes 0.
 
@@ -132,11 +145,15 @@ Result: the Docker pipe `dockerDesktopLinuxEngine` was not available.
 | tests | PASS |
 | route inventory | PASS |
 | dependency boundaries | PASS |
-| Docker backend-agent | FAIL |
-| Docker backend-core | FAIL |
-| Docker dashboard | FAIL |
-| staging startup | FAIL |
+| Docker backend-agent | BLOCKED |
+| Docker backend-core | BLOCKED |
+| Docker dashboard | BLOCKED |
+| staging startup | BLOCKED |
 | Git safety | PASS |
+| backend-core GitHub push | PASS |
+| backend-agent GitHub push | PASS |
+| clean clone backend-core | PASS |
+| clean clone backend-agent | PASS |
 
 # MONOLITH REFACTOR STATUS
 

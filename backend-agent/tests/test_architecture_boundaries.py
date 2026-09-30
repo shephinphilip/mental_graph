@@ -5,7 +5,26 @@ from __future__ import annotations
 import ast
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parents[2]
+import pytest
+
+
+def _repository_root() -> Path:
+    """Monolith root when this file sits in backend-agent/tests, else this repo."""
+    here = Path(__file__).resolve()
+    outer = here.parents[2]
+    if (outer / "docker-compose.staging.yml").is_file() and (outer / "backend-agent").is_dir():
+        return outer
+    return here.parents[1]
+
+
+ROOT = _repository_root()
+
+
+def _agent_root() -> Path:
+    nested = ROOT / "backend-agent"
+    if (nested / "app.py").is_file():
+        return nested
+    return ROOT
 
 AGENT_FORBIDDEN = {"dashboard"}
 CORE_FORBIDDEN = {
@@ -61,17 +80,23 @@ def _offenders(folder: Path, forbidden: set[str]) -> list[str]:
 
 
 def test_backend_core_does_not_import_agent_or_dashboard():
-    hits = _offenders(ROOT / "backend-core", CORE_FORBIDDEN)
+    folder = ROOT / "backend-core"
+    if not folder.is_dir():
+        pytest.skip("backend-core source is not inside this checkout")
+    hits = _offenders(folder, CORE_FORBIDDEN)
     assert hits == []
 
 
 def test_dashboard_does_not_import_agent_internals():
-    hits = _offenders(ROOT / "dashboard", DASHBOARD_FORBIDDEN)
+    folder = ROOT / "dashboard"
+    if not folder.is_dir():
+        pytest.skip("dashboard source is not inside this checkout")
+    hits = _offenders(folder, DASHBOARD_FORBIDDEN)
     assert hits == []
 
 
 def test_backend_agent_does_not_import_dashboard():
-    hits = _offenders(ROOT / "backend-agent", AGENT_FORBIDDEN)
+    hits = _offenders(_agent_root(), AGENT_FORBIDDEN)
     assert hits == []
 
 
@@ -96,14 +121,17 @@ def _paths(application):
 
 def test_each_product_route_has_one_owner():
     from app import app as agent_app
-    from dashboard_app import app as dashboard_application
 
     agent_paths = _paths(agent_app)
-    dashboard_paths = _paths(dashboard_application)
     assert "/chat/send" in agent_paths
     assert "/api/v1/chat/send" in agent_paths
     assert "/auth/login" in agent_paths
     assert "/ws/psychiatrist-voice" in agent_paths
     assert not any(path.startswith("/api/v1/dashboard") for path in agent_paths)
+    try:
+        from dashboard_app import app as dashboard_application
+    except ModuleNotFoundError:
+        pytest.skip("dashboard application is not on the import path")
+    dashboard_paths = _paths(dashboard_application)
     assert "/api/v1/dashboard/overview" in dashboard_paths
     assert "/chat/send" not in dashboard_paths
