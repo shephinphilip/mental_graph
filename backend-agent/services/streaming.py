@@ -98,6 +98,21 @@ def _extract_token_text(chunk) -> str:
         return str(c)
     return str(chunk)
 
+async def stream_welcome_reply(result: dict) -> AsyncGenerator[str, None]:
+    """Render a welcome-service result with the existing SSE events.
+
+    One ``token`` event carries the full reply, then any ``action_card``
+    events, then ``done``. This does not call the chat model.
+    """
+    reply = str(result.get("reply") or "")
+    if reply:
+        yield f"event: token\ndata: {json.dumps({'token': reply})}\n\n"
+    for card in result.get("action_cards") or []:
+        payload = card if isinstance(card, dict) else {}
+        yield f"event: action_card\ndata: {json.dumps(payload)}\n\n"
+    yield f"event: done\ndata: {json.dumps({'status': 'completed'})}\n\n"
+
+
 async def stream_chat_graph(
     user_id: str,
     session_id: str,

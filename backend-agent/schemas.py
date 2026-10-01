@@ -37,7 +37,7 @@ from enum import Enum
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 
 # ════════════════════════════════════════════════════════════════════════════
@@ -183,10 +183,9 @@ class LoginResponse(BaseModel):
     student_class: Optional[str] = None
     school: Optional[str] = None
     preferred_language: Optional[str] = None
-    age: Optional[int] = None
-    chief_concern: Optional[str] = None
     board: Optional[str] = None
     personalization_consent: bool = False
+    timezone: Optional[str] = None
 
 
 class WelcomeRequest(BaseModel):
@@ -229,8 +228,22 @@ class ProactiveDecisionResponse(BaseModel):
 
 
 class LanguagePreferenceRequest(BaseModel):
-    language: str
-    user_id: Optional[str] = None
+    """Token owner only. ``language`` remains accepted for older clients."""
+
+    preferred_language: Optional[str] = None
+    language: Optional[str] = None
+
+    @model_validator(mode="after")
+    def resolve_language(self):
+        chosen = (self.preferred_language or self.language or "").strip()
+        if not chosen:
+            raise ValueError("preferred_language is required")
+        self.preferred_language = chosen
+        return self
+
+
+class TimezonePreferenceRequest(BaseModel):
+    timezone: str
 
 
 class APMFeedbackRequest(BaseModel):

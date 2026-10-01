@@ -18,6 +18,7 @@ from api.routes import (
     journal,
     language,
     meditation,
+    timezone,
     memory,
     patterns,
     proactive,
@@ -43,6 +44,7 @@ def _mount_domain(router: APIRouter, *, api_prefix: str) -> None:
     router.include_router(consultation.router)
     router.include_router(voice.router)
     router.include_router(language.router, prefix=api_prefix)
+    router.include_router(timezone.router, prefix=api_prefix)
     router.include_router(memory.router, prefix=api_prefix)
     router.include_router(proactive.router, prefix=api_prefix)
     router.include_router(patterns.router, prefix=api_prefix)

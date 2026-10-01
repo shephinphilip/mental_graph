@@ -22,10 +22,9 @@ def _session_payload(user: dict) -> LoginResponse:
         student_class=user.get("class"),
         school=user.get("school"),
         preferred_language=user.get("preferred_language"),
-        age=user.get("age"),
-        chief_concern=user.get("chief_concern"),
         board=user.get("board"),
         personalization_consent=user.get("personalization_consent", False),
+        timezone=user.get("timezone"),
     )
 
 

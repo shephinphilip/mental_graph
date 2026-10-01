@@ -461,9 +461,13 @@ def render_action_card(card: dict):
 
 def fetch_welcome(user_id: str, session_id: str) -> dict:
     response = requests.post(
-        f"{api_base()}/chat/welcome",
+        f"{api_base()}/chat/send",
         headers=auth_headers(),
-        json={"user_id": user_id, "session_id": session_id},
+        json={
+            "user_id": user_id,
+            "session_id": session_id,
+            "message": "WELCOME MESSAGE",
+        },
         timeout=90,
     )
     response.raise_for_status()
@@ -548,7 +552,7 @@ with st.sidebar:
             response = requests.post(
                 f"{api_base()}/api/language",
                 headers=auth_headers(),
-                json={"language": chosen_language},
+                json={"preferred_language": chosen_language},
                 timeout=10,
             )
             if response.ok:

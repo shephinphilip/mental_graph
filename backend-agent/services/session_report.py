@@ -102,6 +102,18 @@ async def generate_session_report(db, *, user_id: str, session_id: str) -> Dict[
     """Read one session, estimate its state, and rank at most one practice."""
     docs = await load_session_messages(db, user_id, session_id, limit=40)
     messages = [decrypt_message_doc(doc) for doc in docs]
+    from backend_core.users import get_by_identifier
+    from reports.concerns import build_key_concerns
+
+    zone = None
+    try:
+        owner = await get_by_identifier(db, user_id)
+    except Exception:
+        logger.exception("Timezone lookup skipped for report user=%s", user_id)
+        owner = None
+    if isinstance(owner, dict) and isinstance(owner.get("timezone"), str):
+        zone = owner["timezone"]
+    key_concerns = build_key_concerns(docs, zone)
     transcript = _transcript(messages)
     if not transcript.strip():
         raise ValueError("This session has no conversation to report on")
@@ -266,6 +278,8 @@ async def generate_session_report(db, *, user_id: str, session_id: str) -> Dict[
         "crisis_signal": crisis,
         "withheld_reason": decision.withheld_reason,
         "recommendation": recommendation,
+        "timezone": zone if isinstance(zone, str) else None,
+        "key_concerns": key_concerns,
         "created_at": datetime.now(timezone.utc),
     }
     doc["tasks"] = reading["proposed_tasks"]
@@ -318,4 +332,6 @@ async def generate_session_report(db, *, user_id: str, session_id: str) -> Dict[
         "tasks": reading["proposed_tasks"],
         "task_persistence": reading["task_persistence"],
         "memory_facts": memory_result,
+        "timezone": zone if isinstance(zone, str) else None,
+        "key_concerns": key_concerns,
     }

@@ -300,6 +300,7 @@ async def set_preferred_language(db, identifier: str, language: str):
             "$set": {
                 "preferred_language": parsed,
                 "preferred_language_updated_at": datetime.now(timezone.utc),
+                "updated_at": datetime.now(timezone.utc),
             }
         },
     )

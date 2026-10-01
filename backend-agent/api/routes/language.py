@@ -25,12 +25,9 @@ async def update_preferred_language(
     user_id: str = Depends(authenticated_user_id),
     db: AsyncIOMotorDatabase = Depends(get_db),
 ):
-    """Store the signed-in user's language. The body user id is not the target."""
-    from services.language_preferences import language_write_target
-
+    """Store the signed-in user's language. The token user is the only write target."""
     try:
-        language_write_target(user_id, payload.user_id)
-        updated = await set_preferred_language(db, user_id, payload.language)
+        updated = await set_preferred_language(db, user_id, payload.preferred_language)
     except PermissionError as exc:
         logger.warning("Language update rejected: %s", exc)
         raise HTTPException(status_code=403, detail=str(exc)) from exc
@@ -43,6 +40,7 @@ async def update_preferred_language(
 
     enqueue_profile_refresh(background_tasks, db, user_id)
     return {
+        "success": True,
+        "user_id": user_id,
         "preferred_language": updated.get("preferred_language"),
-        "preferred_language_updated_at": updated.get("preferred_language_updated_at"),
     }
