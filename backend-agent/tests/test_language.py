@@ -60,7 +60,7 @@ def test_each_supported_language_is_named_in_the_instruction():
 
 def test_english_instruction_stays_in_english():
     text = language_instruction({"resolved_language": "ENGLISH"})
-    assert "casual WhatsApp-style English" in text
+    assert "plain, steady WhatsApp-length English" in text
     assert "Do not switch language because the current message" in text
 
 

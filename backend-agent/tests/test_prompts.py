@@ -16,6 +16,9 @@ def test_format_system_prompt_fills_defaults():
     assert "No academic data available" in text
     assert "No attendance data available" in text
     assert "LISTEN FIRST" in text
+    assert "TONE WHEN SOMEONE SHARES DIFFICULTY" in text
+    assert "Oh wow" in text
+    assert "Do not use emoji in emotional or distress turns" in text
     assert "Never re-greet" in text
     assert "YOU ARE NEVER THE CRISIS SYSTEM" in text
     assert "ONE proactive observation" in text

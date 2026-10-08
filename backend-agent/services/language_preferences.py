@@ -205,7 +205,7 @@ def language_instruction(resolved: Dict[str, str]) -> str:
             "The student's current preferred language is: ENGLISH\n"
             "The student's current writing/script style is: LATIN\n"
             "The user's selected language is ENGLISH.\n"
-            "Respond entirely in casual WhatsApp-style English.\n"
+            "Respond entirely in plain, steady WhatsApp-length English.\n"
             "Do not switch language because the current message is in another language.\n"
             "Sound warm and short, not like an essay or a clinical note.\n"
             "Keep phone numbers and official names unchanged.\n"
